@@ -25,6 +25,7 @@ interface Question {
     ai_draft_answer?: string
     final_answer?: string
     user_id: string
+    image_url?: string // Added image_url
 }
 
 export function QuestionList({ lectureId }: { lectureId: string }) {
@@ -126,6 +127,17 @@ export function QuestionList({ lectureId }: { lectureId: string }) {
                             <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-3 rounded-lg">
                                 {q.content}
                             </p>
+
+                            {/* Question Image */}
+                            {q.image_url && (
+                                <div className="mt-3">
+                                    <img
+                                        src={q.image_url}
+                                        alt="Question Attachment"
+                                        className="rounded-lg border border-gray-200 max-h-60 object-contain bg-gray-50"
+                                    />
+                                </div>
+                            )}
 
                             {/* Answer Section */}
                             {q.status === 'answered' && (
