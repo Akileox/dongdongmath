@@ -89,7 +89,7 @@ export function StudentManager() {
                 <div className="flex justify-between items-center">
                     <CardTitle>학생 일괄 등록</CardTitle>
                     <div className="text-xs text-gray-400 text-right">
-                        <p>엑셀 헤더(이름, 전화번호, 학년)를 제외한 <strong>데이터만</strong> 복사해서 붙여넣으세요.</p>
+                        <p>엑셀 헤더를 제외한 <strong>데이터만</strong> 복사해서 붙여넣으세요.</p>
                         <p className="font-mono mt-1 text-gray-500">초기 비밀번호: 123456* (로그인 후 변경 필요)</p>
                     </div>
                 </div>
