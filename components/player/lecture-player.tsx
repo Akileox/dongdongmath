@@ -21,10 +21,10 @@ interface LecturePlayerProps {
     url: string
     lectureId: string
     userId: string
+    onTimeCapture?: (seconds: number) => void
 }
 
-export function LecturePlayer({ url, lectureId, userId }: LecturePlayerProps) {
-    const [showQuestionForm, setShowQuestionForm] = useState(false)
+export function LecturePlayer({ url, lectureId, userId, onTimeCapture }: LecturePlayerProps) {
     const [currentTimestamp, setCurrentTimestamp] = useState(0)
     const [player, setPlayer] = useState<any>(null)
     const videoId = getYouTubeId(url)
@@ -36,16 +36,14 @@ export function LecturePlayer({ url, lectureId, userId }: LecturePlayerProps) {
     const handleAskQuestion = async () => {
         if (player && typeof player.getCurrentTime === 'function') {
             const time = await player.getCurrentTime()
-            setCurrentTimestamp(Math.floor(time))
-            player.pauseVideo()
-        }
-        setShowQuestionForm(true)
-    }
+            const timeInt = Math.floor(time)
+            setCurrentTimestamp(timeInt)
 
-    const handleCloseForm = () => {
-        setShowQuestionForm(false)
-        if (player && typeof player.playVideo === 'function') {
-            player.playVideo()
+            // Invoke callback if provided, otherwise fallback or helpful log
+            if (onTimeCapture) {
+                onTimeCapture(timeInt)
+                player.pauseVideo()
+            }
         }
     }
 
@@ -89,19 +87,6 @@ export function LecturePlayer({ url, lectureId, userId }: LecturePlayerProps) {
                     질문하기 ({formatTime(currentTimestamp)})
                 </Button>
             </div>
-
-            {showQuestionForm && (
-                <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-                    <div className="w-full max-w-lg">
-                        <QuestionForm
-                            lectureId={lectureId}
-                            userId={userId}
-                            timestamp={currentTimestamp}
-                            onClose={handleCloseForm}
-                        />
-                    </div>
-                </div>
-            )}
         </div>
     )
 }

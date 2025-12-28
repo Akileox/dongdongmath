@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-export function StudentManager() {
+export function AssistantManager() {
     const [rawText, setRawText] = useState('')
     const [loading, setLoading] = useState(false)
     const [result, setResult] = useState<{ success: number, fail: number, errors: string[] } | null>(null)
@@ -15,41 +15,36 @@ export function StudentManager() {
         setLoading(true)
         setResult(null)
 
-        // Parse Excel Copy-Paste (Tab separated) or CSV (Comma separated)
-        // Format: Name | Phone | Grade
+        // Format: Name | Phone | Position (optional description)
         const lines = rawText.split('\n').filter(line => line.trim() !== '')
 
         const users = lines.map(line => {
-            // Split by tab (Excel) or comma (CSV)
             let parts = line.split('\t')
-            if (parts.length < 2) parts = line.split(',') // Fallback to CSV
+            if (parts.length < 2) parts = line.split(',')
 
-            // Clean up
             parts = parts.map(p => p.trim())
 
-            // Expected: Name, Phone, Grade
             const name = parts[0]
             const phone = parts[1]
-            const grade = parts[2] || ''
+            const position = parts[2] || '조교'
 
             if (!name || !phone) return null
 
-            // Rule: ID is Phone Number (digits only)
             const id = phone.replace(/[^0-9]/g, '')
 
-            // Rule: Default API password will be used (123456*)
-
             return {
-                email: `${id}@teamdj.com`, // Auto-generate email
-                name,
+                email: `${id}@teamdj.com`,
+                name: `${name} T`, // Append T explicitly for assistants
+                password: id, // Default password = phone
                 phone,
-                grade
+                grade: position, // Store position in grade field or metadata
+                role: 'assistant' // Important: Set role to assistant
             }
-        }).filter(u => u !== null && u.name !== '이름') // Filter out header if pasted (checking valid name)
+        }).filter(u => u !== null && u.name !== '이름')
 
         if (users.length === 0) {
             setLoading(false)
-            alert('올바른 데이터 형식이 아닙니다. (이름, 전화번호, 학년 순서로 입력해주세요)')
+            alert('올바른 데이터 형식이 아닙니다.')
             return
         }
 
@@ -63,7 +58,6 @@ export function StudentManager() {
             const data = await res.json()
 
             if (res.ok) {
-                // Count success/fail from results
                 const successes = data.results.filter((r: any) => r.status === 'success').length
                 const failures = data.results.filter((r: any) => r.status === 'error')
 
@@ -72,7 +66,7 @@ export function StudentManager() {
                     fail: failures.length,
                     errors: failures.map((f: any) => `${f.email}: ${f.error}`)
                 })
-                if (failures.length === 0) setRawText('') // Clear input on success
+                if (failures.length === 0) setRawText('')
             } else {
                 alert(`Error: ${data.error}`)
             }
@@ -87,10 +81,10 @@ export function StudentManager() {
         <Card className="glass border-white/10">
             <CardHeader>
                 <div className="flex justify-between items-center">
-                    <CardTitle>학생 일괄 등록</CardTitle>
+                    <CardTitle>조교/선생님 계정 등록</CardTitle>
                     <div className="text-xs text-gray-400 text-right">
-                        <p>엑셀 헤더(이름, 전화번호, 학년)를 제외한 <strong>데이터만</strong> 복사해서 붙여넣으세요.</p>
-                        <p className="font-mono mt-1 text-gray-500">초기 비밀번호: 123456* (로그인 후 변경 필요)</p>
+                        <p>이름, 전화번호, 직책(선택) 순서입니다.</p>
+                        <p className="font-mono mt-1 text-gray-500">자동으로 이름 뒤에 'T'가 붙습니다.</p>
                     </div>
                 </div>
             </CardHeader>
@@ -98,7 +92,7 @@ export function StudentManager() {
                 <div className="space-y-4">
                     <textarea
                         className="w-full h-40 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono focus:ring-1 focus:ring-black"
-                        placeholder={`예시:\n김철수\t010-1234-5678\t3학년\n이영희\t010-9876-5432\t1학년`}
+                        placeholder={`예시:\n이동재\t010-1234-5678\t메인강사\n김조교\t010-9876-5432\t채점조교`}
                         value={rawText}
                         onChange={(e) => setRawText(e.target.value)}
                     />
@@ -106,9 +100,9 @@ export function StudentManager() {
                     <Button
                         onClick={handleUpload}
                         disabled={loading || !rawText.trim()}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 shadow-sm"
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 shadow-sm"
                     >
-                        {loading ? '등록 처리 중...' : '학생 계정 일괄 생성'}
+                        {loading ? '등록 처리 중...' : '조교 계정 생성'}
                     </Button>
 
                     {result && (
@@ -117,13 +111,6 @@ export function StudentManager() {
                                 {result.success}명 생성 성공
                                 {result.fail > 0 && `, ${result.fail}명 실패`}
                             </p>
-                            {result.errors.length > 0 && (
-                                <ul className="list-disc pl-4 text-xs space-y-1 opacity-80 max-h-32 overflow-y-auto">
-                                    {result.errors.map((e, i) => (
-                                        <li key={i}>{e}</li>
-                                    ))}
-                                </ul>
-                            )}
                         </div>
                     )}
                 </div>

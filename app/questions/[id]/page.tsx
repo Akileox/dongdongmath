@@ -1,6 +1,7 @@
 import { PublicNavbar } from "@/components/layout/public-navbar"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { AnswerSection } from "@/components/questions/answer-section"
 
 export default async function QuestionDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -47,11 +48,22 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
                 </div>
 
                 <div className="min-h-[200px] mb-8">
-                    <p className="whitespace-pre-wrap">{question.content}</p>
+                    <p className="whitespace-pre-wrap leading-relaxed text-gray-800">{question.content}</p>
+
+                    {question.image_url && (
+                        <div className="mt-6">
+                            <img
+                                src={question.image_url}
+                                alt="질문 첨부 이미지"
+                                className="rounded-xl border border-gray-200 max-h-[500px] object-contain bg-gray-50"
+                            />
+                        </div>
+                    )}
                 </div>
 
-                <div className="bg-gray-50 p-6 rounded-lg text-center text-gray-500">
-                    아직 등록된 답변이 없습니다.
+                <div className="border-t border-gray-100 pt-8">
+                    <h2 className="text-lg font-bold mb-4">답변</h2>
+                    <AnswerSection question={question} />
                 </div>
             </div>
         </main>

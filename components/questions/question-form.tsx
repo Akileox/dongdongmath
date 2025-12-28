@@ -92,65 +92,65 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
     }
 
     return (
-        <Card className="w-full max-w-lg bg-white shadow-2xl border-0 max-h-[90vh] overflow-y-auto">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-gray-100 pb-4">
+        <Card className="w-full max-w-lg bg-white shadow-2xl border-0 flex flex-col max-h-[calc(100%-2rem)]">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-gray-100 pb-3 flex-shrink-0">
                 <div className="flex flex-col">
-                    <CardTitle className="text-xl font-bold text-gray-900">질문 작성하기</CardTitle>
-                    {lectureTitle && <span className="text-xs text-blue-600 font-bold mt-1">{lectureTitle}</span>}
+                    <CardTitle className="text-lg font-bold text-gray-900">질문 작성하기</CardTitle>
+                    {lectureTitle && <span className="text-xs text-blue-600 font-bold mt-0.5">{lectureTitle}</span>}
                 </div>
                 <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 text-gray-500 hover:bg-gray-100 rounded-full">
                     <X size={20} />
                 </Button>
             </CardHeader>
-            <CardContent className="pt-6">
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-gray-50 p-3 rounded-lg">
-                        <span className="bg-black text-white px-2 py-0.5 rounded text-xs font-bold">Time</span>
-                        <span className="font-mono text-lg text-black">{formatTime(timestamp)}</span>
+            <CardContent className="pt-4 overflow-y-auto flex-1">
+                <form onSubmit={handleSubmit} className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-700 bg-gray-50 p-2 rounded-lg">
+                        <span className="bg-black text-white px-2 py-0.5 rounded text-[10px] font-bold">Time</span>
+                        <span className="font-mono text-base text-black">{formatTime(timestamp)}</span>
                         <span className="text-gray-400 text-xs ml-auto">현재 재생 시간</span>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-700">제목</label>
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-700">제목</label>
                         <Input
                             placeholder="질문 제목을 입력해주세요"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             required
-                            className="bg-white border-gray-200 text-black placeholder:text-gray-400"
+                            className="bg-white border-gray-200 text-black placeholder:text-gray-400 h-9 text-sm"
                         />
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-700">질문 내용</label>
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-700">질문 내용</label>
                         <Textarea
-                            placeholder="궁금한 내용을 구체적으로 적어주세요."
+                            placeholder="궁금한 내용을 적어주세요."
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
                             required
-                            className="min-h-[120px] bg-white border-gray-200 text-black placeholder:text-gray-400 resize-none"
+                            className="min-h-[80px] bg-white border-gray-200 text-black placeholder:text-gray-400 resize-none text-sm"
                         />
                     </div>
 
                     {/* Image Upload Area */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-700">이미지 첨부 (선택)</label>
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-700">이미지 첨부 (선택)</label>
                         {imageUrl ? (
-                            <div className="relative rounded-xl overflow-hidden border border-gray-200 group">
-                                <img src={imageUrl} alt="Uploaded" className="w-full h-48 object-cover" />
+                            <div className="relative rounded-lg overflow-hidden border border-gray-200 group">
+                                <img src={imageUrl} alt="Uploaded" className="w-full h-32 object-contain bg-gray-50" />
                                 <button
                                     type="button"
                                     onClick={() => setImageUrl(null)}
                                     className="absolute top-2 right-2 bg-black/50 hover:bg-black text-white p-1 rounded-full transition-colors"
                                 >
-                                    <X size={16} />
+                                    <X size={14} />
                                 </button>
                             </div>
                         ) : (
-                            <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center justify-center text-gray-400 hover:border-black hover:bg-gray-50 transition-all cursor-pointer relative">
-                                <Upload size={24} className="mb-2 transition-colors" />
-                                <span className="text-xs transition-colors">
-                                    {uploading ? '업로드 중...' : '이미지(문제/풀이) 클릭하여 업로드'}
+                            <div className="border border-dashed border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center text-gray-400 hover:border-black hover:bg-gray-50 transition-all cursor-pointer relative bg-gray-50/50">
+                                <Upload size={20} className="mb-1 transition-colors" />
+                                <span className="text-[10px] transition-colors">
+                                    {uploading ? '업로드 중...' : '이미지 첨부하기'}
                                 </span>
                                 <input
                                     type="file"
@@ -163,7 +163,7 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
                         )}
                     </div>
 
-                    <Button type="submit" disabled={loading || uploading} className="w-full bg-black hover:bg-gray-900 text-white font-bold h-12 rounded-xl text-md shadow-lg transition-transform active:scale-[0.98]">
+                    <Button type="submit" disabled={loading || uploading} className="w-full bg-black hover:bg-gray-900 text-white font-bold h-10 rounded-lg text-sm shadow-md mt-2">
                         {loading ? '등록 중...' : '질문 등록 완료'}
                     </Button>
                 </form>

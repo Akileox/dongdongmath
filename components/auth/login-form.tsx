@@ -21,15 +21,20 @@ export function LoginForm() {
         // Treat ID as email by appending a default domain
         const email = `${id}@teamdj.com`
 
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
             email: email,
             password,
         })
 
         if (error) {
-            alert('로그인 실패: 아이디 또는 비밀번호를 확인해주세요.') // Changed error handling
+            alert('로그인 실패: 아이디 또는 비밀번호를 확인해주세요.')
         } else {
-            router.push('/dashboard') // Redirect after login
+            // Check for forced password change
+            if (data.user?.user_metadata?.must_change_password) {
+                router.push('/auth/change-password')
+            } else {
+                router.push('/dashboard')
+            }
         }
         setLoading(false) // Moved setLoading(false) to always run
     }

@@ -28,9 +28,15 @@ export async function POST(request: Request) {
             // Create user in Auth
             const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
                 email: user.email,
-                password: 'tempPassword123!', // Default password, should be changed or randomized
+                password: '123456*', // Default password as requested (6+ chars)
                 email_confirm: true,
-                user_metadata: { full_name: user.name, phone: user.phone }
+                user_metadata: {
+                    full_name: user.name,
+                    phone: user.phone,
+                    grade: user.grade,
+                    role: user.role || 'student', // Support custom roles
+                    must_change_password: true
+                }
             })
 
             if (authError) {

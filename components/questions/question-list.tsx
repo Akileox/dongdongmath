@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useUserRole } from "@/hooks/use-user-role"
+import { QuestionForm } from "@/components/questions/question-form"
 
 // Simulated Badge
 const BadgeSim = ({ children, variant }: { children: React.ReactNode, variant: 'default' | 'secondary' | 'outline' | 'success' }) => {
@@ -28,13 +29,33 @@ interface Question {
     image_url?: string // Added image_url
 }
 
-export function QuestionList({ lectureId }: { lectureId: string }) {
+export function QuestionList({ lectureId, initialTimestamp, onClearTimestamp }: { lectureId: string, initialTimestamp?: number, onClearTimestamp?: () => void }) {
+    const [isCreating, setIsCreating] = useState(false)
+    const [initialTime, setInitialTime] = useState(0)
     const [questions, setQuestions] = useState<Question[]>([])
-    const { role, loading } = useUserRole() // Changed from destructuring isAdmin directly to check usage
+    const { role, user, loading } = useUserRole()
     const isAdmin = role === 'admin' || role === 'assistant'
     const supabase = createClient()
     const [answeringId, setAnsweringId] = useState<string | null>(null)
     const [answerDraft, setAnswerDraft] = useState('')
+
+    // Trigger Creation when initialTimestamp prop changes (from parent)
+    useEffect(() => {
+        if (typeof initialTimestamp === 'number' && initialTimestamp >= 0) {
+            setInitialTime(initialTimestamp)
+            setIsCreating(true)
+        }
+    }, [initialTimestamp])
+
+    const startCreating = () => {
+        setInitialTime(0) // Default
+        setIsCreating(true)
+    }
+
+    const handleCloseForm = () => {
+        setIsCreating(false)
+        if (onClearTimestamp) onClearTimestamp()
+    }
 
     useEffect(() => {
         const fetchQuestions = async () => {
@@ -51,7 +72,7 @@ export function QuestionList({ lectureId }: { lectureId: string }) {
 
         const channel = supabase.channel('questions')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `lecture_id=eq.${lectureId}` }, (payload) => {
-                fetchQuestions() // Refresh for simplicity
+                fetchQuestions()
             })
             .subscribe()
 
@@ -60,7 +81,6 @@ export function QuestionList({ lectureId }: { lectureId: string }) {
 
     const startAnswering = (q: Question) => {
         setAnsweringId(q.id)
-        // Pre-fill with AI draft if available and not yet answered
         setAnswerDraft(q.final_answer || q.ai_draft_answer || '')
     }
 
@@ -85,11 +105,30 @@ export function QuestionList({ lectureId }: { lectureId: string }) {
     if (loading) return <div className="text-gray-400 text-sm">Loading q&a...</div>
 
     return (
-        <div className="space-y-4 h-full flex flex-col">
-            <h3 className="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2">질문 목록</h3>
+        <div className="space-y-6 h-full flex flex-col">
+            <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+                <h3 className="text-lg font-bold text-gray-900">질문 목록</h3>
+                {!isCreating && (
+                    <Button onClick={startCreating} className="bg-black hover:bg-gray-800 text-white font-bold text-xs h-8">
+                        직접 질문 작성
+                    </Button>
+                )}
+            </div>
+
+            {/* Inline Question Form */}
+            {isCreating && (
+                <div className="animate-in slide-in-from-top-4 duration-300">
+                    <QuestionForm
+                        lectureId={lectureId}
+                        timestamp={initialTime}
+                        userId={user!.id}
+                        onClose={handleCloseForm}
+                    />
+                </div>
+            )}
 
             <div className="flex-1 space-y-4 pb-4">
-                {questions.length === 0 && (
+                {questions.length === 0 && !isCreating && (
                     <div className="text-center py-10 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                         <p className="text-gray-400 text-sm">아직 등록된 질문이 없습니다.</p>
                         <p className="text-gray-300 text-xs mt-1">첫 번째 질문을 남겨보세요!</p>
