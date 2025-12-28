@@ -3,7 +3,6 @@
 import { useUserRole } from "@/hooks/use-user-role"
 import { LectureManager } from "@/components/admin/lecture-manager"
 import { StudentManager } from "@/components/admin/student-manager"
-import { AssistantManager } from "@/components/admin/assistant-manager"
 import { NoticeManager } from "@/components/admin/notice-manager"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
@@ -53,10 +52,6 @@ export default function AdminPage() {
                             <div className="p-6 border border-white/10 rounded-xl bg-white/5 backdrop-blur-md">
                                 <h2 className="text-xl font-semibold mb-4">학생 관리</h2>
                                 <StudentManager />
-                            </div>
-                            <div className="p-6 border border-white/10 rounded-xl bg-white/5 backdrop-blur-md">
-                                <h2 className="text-xl font-semibold mb-4">조교/선생님 관리</h2>
-                                <AssistantManager />
                             </div>
                         </div>
                     </div>

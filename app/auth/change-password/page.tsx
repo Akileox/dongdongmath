@@ -49,7 +49,7 @@ export default function ChangePasswordPage() {
                 <CardHeader className="space-y-1 text-center">
                     <CardTitle className="text-2xl font-bold">비밀번호 변경</CardTitle>
                     <CardDescription>
-                        보안을 위해 초기 비밀번호를 변경해야 합니다.
+                        새로운 비밀번호를 설정합니다.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

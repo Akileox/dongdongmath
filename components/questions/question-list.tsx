@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useUserRole } from "@/hooks/use-user-role"
 import { QuestionForm } from "@/components/questions/question-form"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 // Simulated Badge
 const BadgeSim = ({ children, variant }: { children: React.ReactNode, variant: 'default' | 'secondary' | 'outline' | 'success' }) => {
@@ -185,9 +186,9 @@ export function QuestionList({ lectureId, initialTimestamp, onClearTimestamp }: 
                                         <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold">T</div>
                                         <span className="text-sm font-bold text-blue-900">선생님 답변</span>
                                     </div>
-                                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                                        {q.final_answer}
-                                    </p>
+                                    <div className="text-sm text-gray-800 leading-relaxed">
+                                        <MarkdownRenderer content={q.final_answer || ''} />
+                                    </div>
                                 </div>
                             )}
 

@@ -14,7 +14,8 @@ export default function DashboardLayout({
 
     const handleLogout = async () => {
         await supabase.auth.signOut()
-        router.push('/')
+        router.refresh() // Clear Server Component cache
+        router.push('/login') // Redirect to login
     }
 
     return (
@@ -29,6 +30,9 @@ export default function DashboardLayout({
                     <nav className="flex items-center gap-6">
                         <Link href="/notices" className="text-sm font-medium text-gray-600 hover:text-black transition-colors">공지사항</Link>
                         <Link href="/questions" className="text-sm font-medium text-gray-600 hover:text-black transition-colors">질문게시판</Link>
+                        <Link href="/auth/change-password" className="text-sm font-medium text-gray-600 hover:text-black transition-colors">
+                            비밀번호 변경
+                        </Link>
                         <div className="h-4 w-px bg-gray-200"></div>
                         <Button variant="ghost" onClick={handleLogout} className="text-sm text-gray-500 hover:text-black hover:bg-gray-100">
                             로그아웃

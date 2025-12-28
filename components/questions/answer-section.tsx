@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { useUserRole } from "@/hooks/use-user-role"
+import { Upload, X } from 'lucide-react'
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 interface Question {
     id: string
@@ -31,6 +33,7 @@ export function AnswerSection({ question }: { question: Question }) {
     const [isEditing, setIsEditing] = useState(false)
     const [draft, setDraft] = useState(question.final_answer || question.ai_draft_answer || '')
     const [loading, setLoading] = useState(false)
+    const [uploading, setUploading] = useState(false)
 
     const startEditing = () => {
         setIsEditing(true)
@@ -42,25 +45,45 @@ export function AnswerSection({ question }: { question: Question }) {
         setDraft('')
     }
 
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return
+
+        try {
+            setUploading(true)
+            const file = e.target.files[0]
+            const fileExt = file.name.split('.').pop()
+            const fileName = `answer_${question.id}_${Math.random()}.${fileExt}`
+            const filePath = `answers/${fileName}` // Storing in 'answers' folder if possible, or root
+
+            // Reuse 'question-images' bucket for simplicity as we know it exists
+            const { error: uploadError } = await supabase.storage
+                .from('question-images')
+                .upload(filePath, file)
+
+            if (uploadError) throw uploadError
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('question-images')
+                .getPublicUrl(filePath)
+
+            // Append Markdown Image to Draft
+            const imageMarkdown = `\n\n![첨부 이미지](${publicUrl})\n`
+            setDraft(prev => prev + imageMarkdown)
+
+        } catch (error: any) {
+            alert('이미지 업로드 실패: ' + error.message)
+        } finally {
+            setUploading(false)
+            // Reset input
+            e.target.value = ''
+        }
+    }
+
     const submitAnswer = async () => {
         setLoading(true)
 
-        // Append signature if not already present
-        // Format: \n\n - [Name] T
-        let answerToSave = draft
-        const userName = user?.user_metadata?.full_name || '선생님'
-        const signature = `\n\n - ${userName}`
-
-        // Ensure "T" is present in name or signature if role is admin/assistant
-        // (AssistantManager adds T to full_name, but existing admins might not have it)
-        // Let's just trust full_name for now, or force append T if missing?
-        // User said: "Admin... Name + T... Make sure to mark who answered"
-        // If full_name is "Kim", signature becomes " - Kim". 
-        // If full_name is "Kim T", signature becomes " - Kim T".
-
-        if (!answerToSave.includes(` - ${userName}`)) {
-            answerToSave += signature
-        }
+        // Removed automated signature as per user request ("I'll reveal it myself")
+        const answerToSave = draft
 
         const { error } = await supabase.from('questions').update({
             final_answer: answerToSave,
@@ -86,9 +109,9 @@ export function AnswerSection({ question }: { question: Question }) {
                         <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">T</div>
                         <span className="font-bold text-blue-900">선생님 답변</span>
                     </div>
-                    <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
-                        {finalAnswer}
-                    </p>
+                    <div className="text-gray-800">
+                        <MarkdownRenderer content={finalAnswer} />
+                    </div>
                 </div>
             )}
 
@@ -113,16 +136,42 @@ export function AnswerSection({ question }: { question: Question }) {
             {isAdmin && isEditing && (
                 <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm animate-in fade-in zoom-in-95 duration-200 space-y-4">
                     <div className="flex justify-between items-center text-sm font-bold text-gray-700">
-                        <span>답변 작성</span>
+                        <div className="flex items-center gap-2">
+                            <span>답변 작성</span>
+                            <span className="text-[10px] text-gray-400 font-normal border border-gray-200 px-1 rounded">Markdown & LaTeX 지원</span>
+                        </div>
                         {question.ai_draft_answer && !finalAnswer && <span className="text-blue-600 bg-blue-100 px-2 py-0.5 rounded text-xs">AI 초안 불러옴</span>}
                     </div>
 
-                    <textarea
-                        className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent min-h-[150px]"
-                        placeholder="친절하고 정확한 답변을 입력해주세요..."
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                    />
+                    <div className="relative">
+                        <textarea
+                            className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent min-h-[200px] font-mono"
+                            placeholder={"답변을 입력하세요...\n\n수식 입력: $E=mc^2$ 또는 $$...$$\n이미지는 아래 버튼으로 첨부하세요."}
+                            value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                        />
+                        {/* Toolbar */}
+                        <div className="absolute bottom-3 right-3 flex gap-2">
+                            <div className="relative">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 gap-2 bg-white hover:bg-gray-50 text-xs font-bold border-gray-300"
+                                    disabled={uploading}
+                                >
+                                    <Upload size={14} />
+                                    {uploading ? '업로드...' : '이미지 추가'}
+                                </Button>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleImageUpload}
+                                    disabled={uploading}
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                />
+                            </div>
+                        </div>
+                    </div>
 
                     <div className="flex justify-end gap-2">
                         <Button variant="ghost" onClick={cancelEditing} disabled={loading} className="text-gray-500 hover:text-gray-700">취소</Button>
