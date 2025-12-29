@@ -1,81 +1,77 @@
--- Create a table for public profiles linked to auth.users
-create table profiles (
+-- Enable UUID extension
+create extension if not exists "uuid-ossp";
+
+-- PROFILES Table
+create table if not exists public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
   email text,
   full_name text,
-  role text default 'student' check (role in ('student', 'admin', 'assistant')),
+  role text default 'student'::text,
   phone text,
+  grade text,
+  school text,
+  class_section text,
+  current_study text, -- Added for study tracking
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Enable Row Level Security (RLS)
-alter table profiles enable row level security;
+-- Enable RLS on profiles
+alter table public.profiles enable row level security;
 
--- Create policies for profiles
-create policy "Public profiles are viewable by everyone." on profiles for select using (true);
-create policy "Users can insert their own profile." on profiles for insert with check (auth.uid() = id);
-create policy "Users can update own profile." on profiles for update using (auth.uid() = id);
-
--- Create a table for lectures
-create table lectures (
-  id uuid default gen_random_uuid() primary key,
-  title text not null,
-  youtube_link text not null,
-  category text,
-  description text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+-- WORK SHIFTS Table (for Assistant Schedule)
+create table if not exists public.work_shifts (
+    id uuid default gen_random_uuid() primary key,
+    category text not null,
+    label text,
+    time_range text,
+    assigned_names text[] default '{}',
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Enable RLS for lectures
-alter table lectures enable row level security;
+-- Enable RLS on work_shifts
+alter table public.work_shifts enable row level security;
 
--- Policies for lectures
-create policy "Lectures are viewable by everyone (students)." on lectures for select using (true);
-create policy "Only admins can insert lectures." on lectures for insert with check (
-  exists (select 1 from profiles where id = auth.uid() and role in ('admin', 'assistant'))
-);
-create policy "Only admins can update lectures." on lectures for update using (
-  exists (select 1 from profiles where id = auth.uid() and role in ('admin', 'assistant'))
-);
-
--- Create a table for questions
-create table questions (
-  id uuid default gen_random_uuid() primary key,
-  user_id uuid references profiles(id) on delete cascade not null,
-  lecture_id uuid references lectures(id) on delete cascade,
-  content text not null,
-  image_url text, -- For dragged & dropped images
-  timestamp_seconds integer, -- Video timestamp
-  status text default 'pending' check (status in ('pending', 'answered')),
-  ai_draft_answer text, -- Hidden draft field
-  final_answer text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- Enable RLS for questions
-alter table questions enable row level security;
-
--- Policies for questions
-create policy "Users can see their own questions." on questions for select using (auth.uid() = user_id);
-create policy "Admins/Assistants can see all questions." on questions for select using (
-  exists (select 1 from profiles where id = auth.uid() and role in ('admin', 'assistant'))
-);
-create policy "Users can insert their own questions." on questions for insert with check (auth.uid() = user_id);
-create policy "Admins/Assistants can update questions (answer)." on questions for update using (
-  exists (select 1 from profiles where id = auth.uid() and role in ('admin', 'assistant'))
-);
-
--- Function to handle new user creation
+-- TRIGGER: Handling New User
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, email, full_name, role)
-  values (new.id, new.email, new.raw_user_meta_data->>'full_name', 'student');
+  insert into public.profiles (id, email, full_name, role, phone, grade, school)
+  values (
+    new.id, 
+    new.email, 
+    new.raw_user_meta_data->>'full_name', 
+    coalesce(new.raw_user_meta_data->>'role', 'student'),
+    new.raw_user_meta_data->>'phone',
+    new.raw_user_meta_data->>'grade',
+    new.raw_user_meta_data->>'school'
+  )
+  on conflict (id) do update
+  set
+    role = excluded.role,
+    full_name = excluded.full_name;
   return new;
 end;
 $$ language plpgsql security definer;
 
--- Trigger the function every time a user is created
+-- Trigger creation (only if not exists - tricky in pure SQL without PL/pgSQL block, but standard simplified version)
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+
+-- RLS POLICIES (Consolidated)
+
+-- Profiles: Allow read for everyone (e.g. for student list) - In prod this should be tighter but for this app requirements:
+create policy "Public profiles are viewable by everyone" on public.profiles
+  for select using (true);
+
+-- Profiles: Allow update by users themselves OR by Admins/Assistants
+-- Note: 'admin' role check via auth.jwt() usually requires custom claims or a look up. 
+-- Simplified: users can update own profile. Frontend admin uses Service Role Key for critical updates.
+create policy "Users can update own profile" on public.profiles
+  for update using (auth.uid() = id);
+
+-- Work Shifts: Public read, Admin write (Simplified to allow all for now as requested or implied by previous scripts)
+create policy "Allow all access to work_shifts"
+on public.work_shifts for all using (true);

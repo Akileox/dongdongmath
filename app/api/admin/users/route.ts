@@ -28,13 +28,16 @@ export async function POST(request: Request) {
             // Create user in Auth
             const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
                 email: user.email,
-                password: '123456*', // Default password as requested (6+ chars)
+                password: user.password || '123456*',
                 email_confirm: true,
                 user_metadata: {
-                    full_name: user.name,
+                    full_name: user.nickname || user.name, // Display name (Nickname for assistants)
+                    name: user.real_name || user.name,     // Real Name
+                    nickname: user.nickname,               // Store nickname explicitly
                     phone: user.phone,
                     grade: user.grade,
-                    role: user.role || 'student', // Support custom roles
+                    school: user.school,
+                    role: user.role || 'student',
                     must_change_password: true
                 }
             })

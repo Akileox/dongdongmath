@@ -13,20 +13,20 @@ export function useUserRole() {
             const { data: { user }, error } = await supabase.auth.getUser()
             if (user) {
                 setUser(user)
-                // Check metadata first
-                if (user.user_metadata?.role) {
-                    setRole(user.user_metadata.role)
-                } else {
-                    // Fallback to profiles table if needed (legacy)
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('role')
-                        .eq('id', user.id)
-                        .single()
 
-                    if (profile) {
-                        setRole(profile.role)
-                    }
+                // Always fetch from profiles to get the latest role state
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', user.id)
+                    .maybeSingle() // Use maybeSingle to avoid error on 0 rows
+
+                if (profile) {
+                    setRole(profile.role)
+                } else {
+                    console.log('No profile found, falling back to metadata')
+                    // Fallback to metadata or default
+                    setRole(user.user_metadata?.role || 'student')
                 }
             }
             setLoading(false)
