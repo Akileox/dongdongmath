@@ -35,6 +35,10 @@ body {
   background: #ffffff;
   color: #171717;
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  word-break: keep-all;
+  /* Prevent breaking in middle of words (Korean) */
+  overflow-wrap: break-word;
+  /* Ensure long words still break if needed */
 }
 
 /* Glassmorphism Utilities (Used in Dashboard) */

@@ -142,7 +142,7 @@ export default function Home() {
               지금, 그 짜릿한 역전의 레이스에 합류하세요."
             </p>
             <Link href="/questions">
-              <Button size="lg" variant="outline" className="h-12 px-8 border-white text-white hover:bg-white hover:text-black transition-colors rounded-none">
+              <Button size="lg" variant="outline" className="h-12 px-8 border-white bg-transparent text-white hover:bg-white hover:text-black transition-colors rounded-none">
                 상담 신청하기
               </Button>
             </Link>
