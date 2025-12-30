@@ -1,7 +1,6 @@
 import React, { forwardRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { CheckCircle2, TrendingUp, AlertCircle, Quote } from "lucide-react"
 
 export interface ReportData {
