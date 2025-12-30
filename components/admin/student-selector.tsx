@@ -6,7 +6,6 @@ import { Search, Filter, Plus, Minus, Check } from 'lucide-react'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface Student {
     id: string
@@ -99,7 +98,7 @@ export function StudentSelector({ onSelectionChange, initialSelectedIds = [] }: 
                         </Button>
                     </div>
                 </div>
-                <ScrollArea className="flex-1 p-2">
+                <div className="flex-1 p-2 overflow-y-auto">
                     <div className="space-y-1">
                         {filteredStudents.map(student => {
                             const isSelected = selectedIds.includes(student.id)
@@ -125,7 +124,7 @@ export function StudentSelector({ onSelectionChange, initialSelectedIds = [] }: 
                             )
                         })}
                     </div>
-                </ScrollArea>
+                </div>
             </div>
 
             {/* Right: Selected List */}
@@ -136,7 +135,7 @@ export function StudentSelector({ onSelectionChange, initialSelectedIds = [] }: 
                         {selectedIds.length}명
                     </Badge>
                 </div>
-                <ScrollArea className="flex-1 p-2">
+                <div className="flex-1 p-2 overflow-y-auto">
                     <div className="space-y-1">
                         {students.filter(s => selectedIds.includes(s.id)).map(student => (
                             <div key={student.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-100">
@@ -147,7 +146,7 @@ export function StudentSelector({ onSelectionChange, initialSelectedIds = [] }: 
                             </div>
                         ))}
                     </div>
-                </ScrollArea>
+                </div>
             </div>
         </div>
     )
