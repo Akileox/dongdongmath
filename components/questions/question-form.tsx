@@ -69,21 +69,9 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
                 if (!imageUrl) setImageUrl(publicUrl)
             }
 
-            // 2. Append to Content
-            const markdown = isVideo
-                ? `\n[동영상](video:${publicUrl})\n` // Custom or simple link. VideoPreview assumes `video_url` column, but inside markdown we might need a link. OR we rely on just "Video attached" text?
-                // Actually `QuestionDetailPage` renders `question.content` as text, NOT markdown?
-                // Step 261 shows `whitespace-pre-wrap` for content. It does NOT use `MarkdownRenderer` for Question Content yet.
-                // Wait, Answer uses `MarkdownRenderer`. Question uses `<p>`.
-                // I should probably UPGRADE Question content to MarkdownRenderer to support inline images?
-                // OR just append a text link.
-                // Let's use text link for now: `(이미지: URL)`
-                : `\n(이미지: ${publicUrl})\n`
-
-            // Better: If I want images to show, I should switch `QuestionDetailPage` content to use `MarkdownRenderer`.
-            // But user just asked to *add* multiple.
-            // I'll append the URL to the text area.
-            setContent(prev => prev + `\n${publicUrl}`)
+            // 2. Append to Content - REMOVED per user request to avoid raw URL in body
+            // The image_url/video_url column is used for display.
+            // setContent(prev => prev + `\n${publicUrl}`)
 
         } catch (error: any) {
             alert('파일 업로드 실패: ' + error.message)

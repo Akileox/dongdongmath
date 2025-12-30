@@ -7,7 +7,7 @@ import { LecturePlayer } from "@/components/player/lecture-player"
 import { QuestionList } from "@/components/questions/question-list"
 import { useUserRole } from "@/hooks/use-user-role"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, HelpCircle, AlertCircle, Edit, Save, X, ChevronLeft } from "lucide-react"
+import { FileText, HelpCircle, AlertCircle, Edit, Save, X, ChevronLeft, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 // import { useToast } from "@/components/ui/use-toast"
@@ -82,6 +82,28 @@ export default function AdminLecturePage() {
         setIsSaving(false)
     }
 
+    const handleDeleteLecture = async (targetId: string, targetTitle: string, e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+
+        if (!confirm(`'${targetTitle}' 강의를 정말 삭제하시겠습니까?`)) return
+
+        const { error } = await supabase.from('lectures').delete().eq('id', targetId)
+        if (error) {
+            alert('삭제 실패: ' + error.message)
+            return
+        }
+
+        // If deleted current lecture, redirect
+        if (targetId === id) {
+            router.push('/admin')
+        } else {
+            // Refresh playlist
+            setPlaylist(prev => prev.filter(p => p.id !== targetId))
+            router.refresh()
+        }
+    }
+
     const [activeTab, setActiveTab] = useState("intro")
     const [qaTimestamp, setQaTimestamp] = useState<number | undefined>(undefined)
 
@@ -120,26 +142,35 @@ export default function AdminLecturePage() {
                                     key={item.id}
                                     href={`/admin/lectures/${item.id}`}
                                     className={cn(
-                                        "block p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors group",
+                                        "block p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors group relative",
                                         isActive ? "bg-blue-50/50 hover:bg-blue-50" : "bg-white"
                                     )}
                                 >
-                                    <div className="flex items-start gap-3">
-                                        <div className={cn(
-                                            "mt-0.5",
-                                            isActive ? "text-blue-600" : "text-gray-300 group-hover:text-gray-400"
-                                        )}>
-                                            {isActive ? <PlayCircle size={16} fill="currentColor" className="text-blue-100" /> : <CheckCircle2 size={16} />}
-                                        </div>
-                                        <div>
-                                            <p className={cn(
-                                                "text-sm mb-1 leading-snug",
-                                                isActive ? "font-bold text-blue-700" : "text-gray-700 group-hover:text-gray-900"
+                                    <div className="flex items-start gap-3 justify-between">
+                                        <div className="flex items-start gap-3 flex-1">
+                                            <div className={cn(
+                                                "mt-0.5",
+                                                isActive ? "text-blue-600" : "text-gray-300 group-hover:text-gray-400"
                                             )}>
-                                                <span className="text-xs text-gray-400 mr-1 font-normal">{index + 1}강.</span>
-                                                {item.title}
-                                            </p>
+                                                {isActive ? <PlayCircle size={16} fill="currentColor" className="text-blue-100" /> : <CheckCircle2 size={16} />}
+                                            </div>
+                                            <div>
+                                                <p className={cn(
+                                                    "text-sm mb-1 leading-snug break-keep",
+                                                    isActive ? "font-bold text-blue-700" : "text-gray-700 group-hover:text-gray-900"
+                                                )}>
+                                                    <span className="text-xs text-gray-400 mr-1 font-normal">{index + 1}강.</span>
+                                                    {item.title}
+                                                </p>
+                                            </div>
                                         </div>
+                                        <button
+                                            onClick={(e) => handleDeleteLecture(item.id, item.title, e)}
+                                            className="text-gray-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                            title="강의 삭제"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
                                     </div>
                                 </Link>
                             )

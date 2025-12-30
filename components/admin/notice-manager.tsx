@@ -100,7 +100,7 @@ export function NoticeManager() {
                             className="bg-white border-gray-200"
                         />
                         <Textarea
-                            placeholder="공지 내용 (HTML 태그 사용 가능)"
+                            placeholder="공지 내용 (Markdown 지원)"
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
                             required

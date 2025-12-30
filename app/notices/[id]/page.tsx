@@ -1,6 +1,7 @@
 import { PublicNavbar } from "@/components/layout/public-navbar"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 
 export default async function NoticeDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -46,7 +47,7 @@ export default async function NoticeDetailPage({ params }: { params: Promise<{ i
                 </div>
 
                 <div className="prose max-w-none">
-                    <div dangerouslySetInnerHTML={{ __html: notice.content }} />
+                    <MarkdownRenderer content={notice.content} />
                 </div>
             </div>
         </main>

@@ -22,7 +22,12 @@ export function LectureManager() {
     const [message, setMessage] = useState('')
     const [playlistUrl, setPlaylistUrl] = useState('')
     const [syncLoading, setSyncLoading] = useState(false)
+
     const [syncMessage, setSyncMessage] = useState('')
+
+    // Delete Mode State
+    const [isEditMode, setIsEditMode] = useState(false)
+    const [selectedSections, setSelectedSections] = useState<string[]>([])
 
     // List State
     const [lectures, setLectures] = useState<any[]>([])
@@ -43,6 +48,11 @@ export function LectureManager() {
     const handleSyncPlaylist = async () => {
         if (!playlistUrl || !section || !grade) {
             setSyncMessage('학년, 섹션명, 재생목록 URL을 모두 입력해주세요.')
+            return
+        }
+
+        if (!playlistUrl.includes('list=')) {
+            setSyncMessage('올바른 재생목록 URL이 아닙니다. URL에 "list="가 포함되어야 합니다.\n(단일 영상은 아래 "개별 강의 추가"를 이용해주세요.)')
             return
         }
 
@@ -70,6 +80,35 @@ export function LectureManager() {
         } finally {
             setSyncLoading(false)
         }
+    }
+
+    const handleDeleteSections = async () => {
+        if (!confirm(`선택한 ${selectedSections.length}개의 강좌(섹션)를 정말 삭제하시겠습니까?\n포함된 모든 강의가 영구적으로 삭제됩니다.`)) return
+        setLoading(true)
+        try {
+            // Delete lectures where section is in selectedSections
+            const { error } = await supabase
+                .from('lectures')
+                .delete()
+                .in('section', selectedSections)
+
+            if (error) throw error
+
+            setMessage(`${selectedSections.length}개의 강좌가 삭제되었습니다.`)
+            setSelectedSections([])
+            setIsEditMode(false)
+            fetchLectures()
+        } catch (e: any) {
+            setMessage('삭제 중 오류 발생: ' + e.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const toggleSelectSection = (secName: string) => {
+        setSelectedSections(prev =>
+            prev.includes(secName) ? prev.filter(s => s !== secName) : [...prev, secName]
+        )
     }
 
     const handleAddLecture = async (e: React.FormEvent) => {
@@ -223,8 +262,28 @@ export function LectureManager() {
                 <div>
                     <h3 className="font-bold text-lg mb-4 text-gray-900 flex items-center gap-2">
                         📚 등록된 강좌 관리
+                        📚 등록된 강좌 관리
                         <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">클릭하여 상세 관리 페이지로 이동</span>
                     </h3>
+
+                    <div className="flex justify-end gap-2 mb-4">
+                        {isEditMode ? (
+                            <>
+                                <Button variant="ghost" onClick={() => { setIsEditMode(false); setSelectedSections([]); }}>취소</Button>
+                                <Button
+                                    variant="destructive"
+                                    disabled={selectedSections.length === 0 || loading}
+                                    onClick={handleDeleteSections}
+                                >
+                                    선택한 {selectedSections.length}개 강좌 삭제
+                                </Button>
+                            </>
+                        ) : (
+                            <Button variant="outline" onClick={() => setIsEditMode(true)} className="text-gray-500 border-gray-300">
+                                강좌 관리(삭제) 모드
+                            </Button>
+                        )}
+                    </div>
 
                     {lectures.length === 0 ? (
                         <div className="text-center text-gray-400 py-8">등록된 강의가 없습니다.</div>
@@ -258,9 +317,25 @@ export function LectureManager() {
                                                 return (
                                                     <div
                                                         key={secName}
-                                                        className="group bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-all cursor-pointer flex flex-col"
-                                                        onClick={() => router.push(`/admin/lectures/${firstLecture.id}`)}
+                                                        className={`group bg-white border rounded-xl overflow-hidden hover:shadow-lg transition-all cursor-pointer flex flex-col relative ${isEditMode && selectedSections.includes(secName) ? 'ring-2 ring-red-500 border-red-500' : 'border-gray-200'}`}
+                                                        onClick={() => {
+                                                            if (isEditMode) {
+                                                                toggleSelectSection(secName)
+                                                            } else {
+                                                                router.push(`/admin/lectures/${firstLecture.id}`)
+                                                            }
+                                                        }}
                                                     >
+                                                        {isEditMode && (
+                                                            <div className="absolute top-2 right-2 z-10">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedSections.includes(secName)}
+                                                                    onChange={() => { }} // handled by div click
+                                                                    className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                                                                />
+                                                            </div>
+                                                        )}
                                                         <div className="aspect-video bg-gray-100 relative overflow-hidden">
                                                             {firstLecture.youtube_link ? (
                                                                 <img

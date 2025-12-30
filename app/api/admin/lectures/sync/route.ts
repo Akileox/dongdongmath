@@ -15,10 +15,22 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Playlist URL and Section are required' }, { status: 400 })
         }
 
+        // 1. Normalize URL to ensure we fetch the "Playlist Page" (not Watch page)
+        // If user provides "watch?v=...&list=...", we must extract list ID and convert to "playlist?list=..."
+        let targetUrl = playlistUrl
+        try {
+            const urlObj = new URL(playlistUrl)
+            const listId = urlObj.searchParams.get('list')
+            if (listId) {
+                targetUrl = `https://www.youtube.com/playlist?list=${listId}`
+            }
+        } catch (e) {
+            // If URL parsing fails, simpler check or rely on fetch fail
+            console.warn('URL parsing failed, using original', e)
+        }
+
         // 1. Fetch Playlist Page HTML
-        // Note: This is an "Unlisted" playlist, but usually accessible via link if we have it.
-        // We use a basic fetch. Headers mimic a browser to avoid some bot detection.
-        const response = await fetch(playlistUrl, {
+        const response = await fetch(targetUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
