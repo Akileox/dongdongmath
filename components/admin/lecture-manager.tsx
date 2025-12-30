@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
+import { useRouter } from "next/navigation"
+
 export function LectureManager() {
     const [title, setTitle] = useState('')
     const [section, setSection] = useState('')
@@ -15,6 +17,7 @@ export function LectureManager() {
     const [loading, setLoading] = useState(false)
     const [message, setMessage] = useState('')
     const supabase = createClient()
+    const router = useRouter()
 
     const handleAddLecture = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -36,6 +39,7 @@ export function LectureManager() {
             setSection('')
             setYoutubeLink('')
             setLearningGuide('')
+            router.refresh()
         }
         setLoading(false)
     }

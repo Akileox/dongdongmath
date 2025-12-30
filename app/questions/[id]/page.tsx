@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { AnswerSection } from "@/components/questions/answer-section"
 import { VideoPreview } from "@/components/ui/video-preview"
+import { QuestionActions } from "@/components/questions/question-actions"
 
 export default async function QuestionDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -41,10 +42,28 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
 
                 <div className="border-b border-gray-200 pb-6 mb-8">
                     <h1 className="text-3xl font-bold mb-4 font-sans">{question.title}</h1>
-                    <div className="flex gap-4 text-sm text-gray-500">
-                        <span>{question.author || '학생'}</span>
-                        <span>{new Date(question.created_at).toLocaleDateString()}</span>
-                        <span className="text-yellow-600">답변 대기중</span>
+                    <div className="flex items-center justify-between">
+                        <div className="flex gap-4 text-sm text-gray-500">
+                            <span>{question.author || '학생'}</span>
+                            <span>{new Date(question.created_at).toLocaleDateString()}</span>
+                            {question.status === 'answered' ? (
+                                <span className="text-blue-600 font-bold">답변 완료</span>
+                            ) : (
+                                <span className="text-gray-400">답변 대기중</span>
+                            )}
+                        </div>
+                        {/* Re-ask Button */}
+                        <div className="flex gap-2">
+                            <QuestionActions questionId={question.id} status={question.status} authorId={question.user_id} />
+
+                            {question.status === 'answered' && (
+                                <Button variant="outline" size="sm" asChild className="border-blue-200 text-blue-700 hover:bg-blue-50">
+                                    <Link href={`/questions/create?parentId=${question.id}`}>
+                                        추가 질문하기(재질문)
+                                    </Link>
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </div>
 

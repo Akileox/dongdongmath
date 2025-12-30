@@ -74,7 +74,7 @@ export function QnaManager() {
                             <div key={q.id} className="flex items-center justify-between p-4 bg-white border rounded-lg hover:bg-gray-50 transition-colors">
                                 <div className="flex-1 min-w-0 mr-4">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <Badge variant={q.status === 'pending' ? 'destructive' : 'outline'} className={q.status === 'pending' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-none' : ''}>
+                                        <Badge variant={q.status === 'pending' ? 'destructive' : 'default'} className={q.status === 'pending' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-none' : 'bg-blue-600 text-white hover:bg-blue-700 border-none'}>
                                             {q.status === 'pending' ? '답변 대기' : '답변 완료'}
                                         </Badge>
                                         <span className="text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString()}</span>

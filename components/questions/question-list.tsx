@@ -146,7 +146,7 @@ export function QuestionList({ lectureId, initialTimestamp, onClearTimestamp }: 
                                             {formatTime(q.timestamp_seconds)}
                                         </span>
                                         {q.status === 'answered' ? (
-                                            <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-200">
+                                            <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded border border-transparent">
                                                 답변완료
                                             </span>
                                         ) : (

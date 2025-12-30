@@ -1,7 +1,8 @@
 'use client'
 
-import { use } from 'react'
+import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Share2, Download, BookOpen } from "lucide-react"
@@ -9,13 +10,47 @@ import { ArrowLeft, Share2, Download, BookOpen } from "lucide-react"
 export default function LearningReportPage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter()
     const { id } = use(params)
+    const [result, setResult] = useState<any>(null)
+    const [loading, setLoading] = useState(true)
+    const supabase = createClient()
 
-    // Mock Data (In a real app, fetch based on ID)
-    const mean = 75
-    const sd = 12
-    const myScore = 88
-    const examDate = "2025.12.27"
-    const examTitle = "수학I 12월 4주차 주간 테스트"
+    useEffect(() => {
+        async function fetchData() {
+            // Fetch Result + Exam Info
+            const { data, error } = await supabase
+                .from('exam_results')
+                .select(`
+                    *,
+                    exams (
+                        title,
+                        exam_date,
+                        total_score
+                    )
+                `)
+                .eq('id', id)
+                .single()
+
+            if (data) {
+                setResult(data)
+            } else {
+                // Fallback / Error handling
+                console.error(error)
+            }
+            setLoading(false)
+        }
+        fetchData()
+    }, [id, supabase])
+
+    if (loading) return <div className="min-h-screen flex items-center justify-center">로딩 중...</div>
+    if (!result) return <div className="min-h-screen flex items-center justify-center">리포트를 찾을 수 없습니다.</div>
+
+    // Data Mapping
+    const myScore = result.score
+    const mean = 70 // Default mean since not in DB
+    const sd = 15 // Default SD since not in DB
+    const examDate = new Date(result.exams?.exam_date).toLocaleDateString()
+    const examTitle = result.exams?.title
+    const aiComment = result.feedback || "분석 결과가 없습니다."
 
     // Generate Bell Curve Path
     const width = 600 // Wider for full page
@@ -118,10 +153,8 @@ export default function LearningReportPage({ params }: { params: Promise<{ id: s
                         <h3 className="font-bold text-indigo-900 mb-3 flex items-center gap-2">
                             💡 AI 학습 코멘트
                         </h3>
-                        <p className="text-indigo-800 leading-relaxed text-lg">
-                            삼각함수의 활용 파트에서 <span className="font-bold bg-indigo-100 px-1 rounded">탁월한 이해도</span>를 보이고 있습니다. <br />
-                            다만, <span className="text-red-600 font-bold">수열의 귀납적 정의</span> 유형에서 계산 실수가 감지되었습니다.
-                            해당 유형의 고난도 문제를 5문제 더 풀어보시는 것을 추천합니다.
+                        <p className="text-indigo-800 leading-relaxed text-lg whitespace-pre-wrap">
+                            {aiComment}
                         </p>
                         <div className="mt-4 flex gap-2">
                             <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white border-none">

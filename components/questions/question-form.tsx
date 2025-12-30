@@ -50,8 +50,6 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
             const filePath = `${userId}/${fileName}`
             const isVideo = file.type.startsWith('video/')
 
-            // Bucket selection: use 'question-images' for everything for now, or 'question-videos' if exists.
-            // Assuming 'question-images' is the only one available/configured for public access right now.
             const bucketName = 'question-images'
 
             const { error: uploadError } = await supabase.storage
@@ -64,13 +62,29 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
                 .from(bucketName)
                 .getPublicUrl(filePath)
 
+            // 1. Set Thumbnail if missing
             if (isVideo) {
-                setVideoUrl(publicUrl)
-                setImageUrl(null) // Only one media type allowed per question for simplicity?
+                if (!videoUrl) setVideoUrl(publicUrl)
             } else {
-                setImageUrl(publicUrl)
-                setVideoUrl(null)
+                if (!imageUrl) setImageUrl(publicUrl)
             }
+
+            // 2. Append to Content
+            const markdown = isVideo
+                ? `\n[동영상](video:${publicUrl})\n` // Custom or simple link. VideoPreview assumes `video_url` column, but inside markdown we might need a link. OR we rely on just "Video attached" text?
+                // Actually `QuestionDetailPage` renders `question.content` as text, NOT markdown?
+                // Step 261 shows `whitespace-pre-wrap` for content. It does NOT use `MarkdownRenderer` for Question Content yet.
+                // Wait, Answer uses `MarkdownRenderer`. Question uses `<p>`.
+                // I should probably UPGRADE Question content to MarkdownRenderer to support inline images?
+                // OR just append a text link.
+                // Let's use text link for now: `(이미지: URL)`
+                : `\n(이미지: ${publicUrl})\n`
+
+            // Better: If I want images to show, I should switch `QuestionDetailPage` content to use `MarkdownRenderer`.
+            // But user just asked to *add* multiple.
+            // I'll append the URL to the text area.
+            setContent(prev => prev + `\n${publicUrl}`)
+
         } catch (error: any) {
             alert('파일 업로드 실패: ' + error.message)
         } finally {
@@ -148,42 +162,50 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
 
                     {/* Media Upload Area */}
                     <div className="space-y-1">
-                        <label className="text-xs font-bold text-gray-700">이미지/동영상 첨부 (선택)</label>
+                        <label className="text-xs font-bold text-gray-700">이미지/동영상 첨부</label>
 
-                        {/* Preview Area */}
-                        {(imageUrl || videoUrl) ? (
-                            <div className="space-y-2">
-                                {imageUrl && (
-                                    <div className="relative rounded-lg overflow-hidden border border-gray-200 group">
-                                        <img src={imageUrl} alt="Uploaded" className="w-full h-32 object-contain bg-gray-50" />
-                                        <button
-                                            type="button"
-                                            onClick={() => setImageUrl(null)}
-                                            className="absolute top-2 right-2 bg-black/50 hover:bg-black text-white p-1 rounded-full transition-colors"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    </div>
-                                )}
-                                {videoUrl && (
-                                    <VideoPreview src={videoUrl} onRemove={() => setVideoUrl(null)} editable />
-                                )}
-                            </div>
-                        ) : (
-                            <div className="border border-dashed border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center text-gray-400 hover:border-black hover:bg-gray-50 transition-all cursor-pointer relative bg-gray-50/50">
-                                <Upload size={20} className="mb-1 transition-colors" />
-                                <span className="text-[10px] transition-colors">
-                                    {uploading ? '업로드 중...' : '이미지 또는 동영상 첨부하기'}
-                                </span>
-                                <input
-                                    type="file"
-                                    accept="image/*,video/*"
-                                    onChange={handleFileUpload}
-                                    disabled={uploading}
-                                    className="absolute inset-0 opacity-0 cursor-pointer"
-                                />
-                            </div>
-                        )}
+                        {/* Thumbnails (Main Covers) */}
+                        <div className="flex gap-2 mb-2 overflow-x-auto">
+                            {imageUrl && (
+                                <div className="relative rounded-lg overflow-hidden border border-gray-200 group flex-shrink-0 w-20 h-20">
+                                    <img src={imageUrl} alt="Thumbnail" className="w-full h-full object-cover bg-gray-50" />
+                                    <button
+                                        type="button"
+                                        onClick={() => setImageUrl(null)}
+                                        className="absolute top-1 right-1 bg-black/50 hover:bg-black text-white p-0.5 rounded-full transition-colors"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            )}
+                            {videoUrl && (
+                                <div className="relative rounded-lg overflow-hidden border border-gray-200 group flex-shrink-0 w-20 h-20 bg-gray-900 flex items-center justify-center">
+                                    <span className="text-white text-[10px]">동영상</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setVideoUrl(null)}
+                                        className="absolute top-1 right-1 bg-black/50 hover:bg-black text-white p-0.5 rounded-full transition-colors"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Upload Button (Always Visible) */}
+                        <div className="border border-dashed border-gray-200 rounded-lg p-3 flex flex-col items-center justify-center text-gray-400 hover:border-black hover:bg-gray-50 transition-all cursor-pointer relative bg-gray-50/50">
+                            <Upload size={16} className="mb-1 transition-colors" />
+                            <span className="text-[10px] transition-colors">
+                                {uploading ? '업로드 중...' : '클릭하여 파일 추가 (본문에 삽입됨)'}
+                            </span>
+                            <input
+                                type="file"
+                                accept="image/*,video/*"
+                                onChange={handleFileUpload}
+                                disabled={uploading}
+                                className="absolute inset-0 opacity-0 cursor-pointer"
+                            />
+                        </div>
                     </div>
 
                     <Button type="submit" disabled={loading || uploading} className="w-full bg-black hover:bg-gray-900 text-white font-bold h-10 rounded-lg text-sm shadow-md mt-2">

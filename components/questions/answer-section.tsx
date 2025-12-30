@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
 import { useUserRole } from "@/hooks/use-user-role"
-import { Upload, X } from 'lucide-react'
+import { Upload, X, Bold, Italic, List, Heading1, Link as LinkIcon, Image as ImageIcon } from 'lucide-react'
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
 import { VideoPreview } from "@/components/ui/video-preview"
 
@@ -16,7 +17,7 @@ interface Question {
     status: string
     created_at: string
     ai_draft_answer?: string
-    final_answer?: string
+    answer?: string
     user_id: string
     lecture_id?: string
     lecture_title?: string
@@ -25,19 +26,54 @@ interface Question {
 }
 
 export function AnswerSection({ question }: { question: Question }) {
+    console.log('AnswerSection Question Prop:', question)
     const { role, user } = useUserRole()
     const isAdmin = role === 'admin' || role === 'assistant'
     const supabase = createClient()
+    const router = useRouter()
 
     // Local state for UI updates
     const [status, setStatus] = useState(question.status)
-    const [finalAnswer, setFinalAnswer] = useState(question.final_answer || '')
+    const [finalAnswer, setFinalAnswer] = useState(question.answer || '')
     const [answerVideoUrl, setAnswerVideoUrl] = useState<string | null>(question.answer_video_url || null)
 
     const [isEditing, setIsEditing] = useState(false)
-    const [draft, setDraft] = useState(question.final_answer || question.ai_draft_answer || '')
+    const [draft, setDraft] = useState(question.answer || question.ai_draft_answer || '')
     const [loading, setLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+    const insertFormat = (prefix: string, suffix: string) => {
+        const textarea = textareaRef.current
+        if (!textarea) return
+
+        const start = textarea.selectionStart
+        const end = textarea.selectionEnd
+        const text = draft
+        const before = text.substring(0, start)
+        const selection = text.substring(start, end)
+        const after = text.substring(end)
+
+        const newText = before + prefix + selection + suffix + after
+        setDraft(newText)
+
+        setTimeout(() => {
+            textarea.focus()
+            textarea.setSelectionRange(start + prefix.length, end + prefix.length)
+        }, 0)
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.ctrlKey || e.metaKey) {
+            if (e.key === 'b') {
+                e.preventDefault()
+                insertFormat('**', '**')
+            } else if (e.key === 'i') {
+                e.preventDefault()
+                insertFormat('*', '*')
+            }
+        }
+    }
 
     const startEditing = () => {
         setIsEditing(true)
@@ -95,18 +131,22 @@ export function AnswerSection({ question }: { question: Question }) {
 
         const answerToSave = draft
 
-        const { error } = await supabase.from('questions').update({
-            final_answer: answerToSave,
+        const { data, error } = await supabase.from('questions').update({
+            answer: answerToSave,
             answer_video_url: answerVideoUrl, // Save video URL
             status: 'answered'
-        }).eq('id', question.id)
+        }).eq('id', question.id).select()
 
-        if (!error) {
+        console.log('Update Result:', { data, error })
+
+        if (!error && data && data.length > 0) {
             setFinalAnswer(answerToSave)
             setStatus('answered')
             setIsEditing(false)
+            router.refresh() // Refresh server data
         } else {
-            alert('답변 등록 실패: ' + error.message)
+            console.error('Update failed:', error || 'No rows updated')
+            alert('답변 등록 실패: ' + (error?.message || '권한이 없거나 해당 질문을 찾을 수 없습니다.'))
         }
         setLoading(false)
     }
@@ -141,13 +181,45 @@ export function AnswerSection({ question }: { question: Question }) {
 
             {/* Admin Controls */}
             {isAdmin && !isEditing && (
-                <Button
-                    onClick={startEditing}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 shadow-sm"
-                >
-                    {status === 'answered' ? '답변 수정하기' : '답변 작성하기 (관리자)'}
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        onClick={startEditing}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 shadow-sm"
+                    >
+                        {status === 'answered' ? '답변 수정하기' : '답변 작성하기 (관리자)'}
+                    </Button>
+                    {status === 'answered' && (
+                        <Button
+                            onClick={async () => {
+                                if (!confirm('정말로 답변을 삭제하시겠습니까? 삭제 후에는 되돌릴 수 없습니다.')) return
+
+                                setLoading(true)
+                                const { error } = await supabase.from('questions').update({
+                                    answer: null,
+                                    answer_video_url: null,
+                                    status: 'pending'
+                                }).eq('id', question.id)
+
+                                if (!error) {
+                                    setStatus('pending')
+                                    setFinalAnswer('')
+                                    setAnswerVideoUrl(null)
+                                    router.refresh()
+                                } else {
+                                    alert('삭제 실패: ' + error.message)
+                                }
+                                setLoading(false)
+                            }}
+                            variant="destructive"
+                            className="w-24 font-bold h-10 shadow-sm"
+                            disabled={loading}
+                        >
+                            삭제
+                        </Button>
+                    )}
+                </div>
             )}
+
 
             {/* Editor */}
             {isAdmin && isEditing && (
@@ -160,12 +232,31 @@ export function AnswerSection({ question }: { question: Question }) {
                         {question.ai_draft_answer && !finalAnswer && <span className="text-blue-600 bg-blue-100 px-2 py-0.5 rounded text-xs">AI 초안 불러옴</span>}
                     </div>
 
+                    {/* Toolbar */}
+                    <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
+                        <Button variant="ghost" size="sm" onClick={() => insertFormat('**', '**')} className="h-7 w-7 p-0 hover:bg-white" title="굵게 (Ctrl+B)">
+                            <Bold size={14} />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => insertFormat('*', '*')} className="h-7 w-7 p-0 hover:bg-white" title="기울임 (Ctrl+I)">
+                            <Italic size={14} />
+                        </Button>
+                        <div className="w-px h-4 bg-gray-300 mx-1" />
+                        <Button variant="ghost" size="sm" onClick={() => insertFormat('# ', '')} className="h-7 w-7 p-0 hover:bg-white" title="제목 1">
+                            <Heading1 size={14} />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => insertFormat('- ', '')} className="h-7 w-7 p-0 hover:bg-white" title="리스트">
+                            <List size={14} />
+                        </Button>
+                    </div>
+
                     <div className="relative">
                         <textarea
+                            ref={textareaRef}
                             className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent min-h-[200px] font-mono"
                             placeholder={"답변을 입력하세요...\n\n수식 입력: $E=mc^2$ 또는 $$...$$\n이미지는 아래 버튼으로 첨부하세요."}
                             value={draft}
                             onChange={(e) => setDraft(e.target.value)}
+                            onKeyDown={handleKeyDown}
                         />
 
                         {/* Video Preview in Editor */}
