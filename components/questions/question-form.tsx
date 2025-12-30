@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { X, Upload } from 'lucide-react'
+import { VideoPreview } from "@/components/ui/video-preview"
 
 interface QuestionFormProps {
     lectureId: string
@@ -22,6 +23,7 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
     const [loading, setLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
     const [imageUrl, setImageUrl] = useState<string | null>(null)
+    const [videoUrl, setVideoUrl] = useState<string | null>(null)
     const supabase = createClient()
 
     // Fetch Lecture Title on Mount
@@ -37,7 +39,7 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
         fetchLectureTitle()
     })
 
-    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return
 
         try {
@@ -46,20 +48,31 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
             const fileExt = file.name.split('.').pop()
             const fileName = `${Math.random()}.${fileExt}`
             const filePath = `${userId}/${fileName}`
+            const isVideo = file.type.startsWith('video/')
+
+            // Bucket selection: use 'question-images' for everything for now, or 'question-videos' if exists.
+            // Assuming 'question-images' is the only one available/configured for public access right now.
+            const bucketName = 'question-images'
 
             const { error: uploadError } = await supabase.storage
-                .from('question-images') // Make sure this bucket exists
+                .from(bucketName)
                 .upload(filePath, file)
 
             if (uploadError) throw uploadError
 
             const { data: { publicUrl } } = supabase.storage
-                .from('question-images')
+                .from(bucketName)
                 .getPublicUrl(filePath)
 
-            setImageUrl(publicUrl)
+            if (isVideo) {
+                setVideoUrl(publicUrl)
+                setImageUrl(null) // Only one media type allowed per question for simplicity?
+            } else {
+                setImageUrl(publicUrl)
+                setVideoUrl(null)
+            }
         } catch (error: any) {
-            alert('이미지 업로드 실패: ' + error.message)
+            alert('파일 업로드 실패: ' + error.message)
         } finally {
             setUploading(false)
         }
@@ -76,7 +89,8 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
             lecture_id: lectureId,
             title: finalTitle,
             content,
-            image_url: imageUrl, // Insert Image URL
+            image_url: imageUrl,
+            video_url: videoUrl, // Insert Video URL
             timestamp_seconds: timestamp,
             status: 'pending',
             ai_draft_answer: null,
@@ -132,30 +146,39 @@ export function QuestionForm({ lectureId, timestamp, onClose, userId }: Question
                         />
                     </div>
 
-                    {/* Image Upload Area */}
+                    {/* Media Upload Area */}
                     <div className="space-y-1">
-                        <label className="text-xs font-bold text-gray-700">이미지 첨부 (선택)</label>
-                        {imageUrl ? (
-                            <div className="relative rounded-lg overflow-hidden border border-gray-200 group">
-                                <img src={imageUrl} alt="Uploaded" className="w-full h-32 object-contain bg-gray-50" />
-                                <button
-                                    type="button"
-                                    onClick={() => setImageUrl(null)}
-                                    className="absolute top-2 right-2 bg-black/50 hover:bg-black text-white p-1 rounded-full transition-colors"
-                                >
-                                    <X size={14} />
-                                </button>
+                        <label className="text-xs font-bold text-gray-700">이미지/동영상 첨부 (선택)</label>
+
+                        {/* Preview Area */}
+                        {(imageUrl || videoUrl) ? (
+                            <div className="space-y-2">
+                                {imageUrl && (
+                                    <div className="relative rounded-lg overflow-hidden border border-gray-200 group">
+                                        <img src={imageUrl} alt="Uploaded" className="w-full h-32 object-contain bg-gray-50" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setImageUrl(null)}
+                                            className="absolute top-2 right-2 bg-black/50 hover:bg-black text-white p-1 rounded-full transition-colors"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                )}
+                                {videoUrl && (
+                                    <VideoPreview src={videoUrl} onRemove={() => setVideoUrl(null)} editable />
+                                )}
                             </div>
                         ) : (
                             <div className="border border-dashed border-gray-200 rounded-lg p-4 flex flex-col items-center justify-center text-gray-400 hover:border-black hover:bg-gray-50 transition-all cursor-pointer relative bg-gray-50/50">
                                 <Upload size={20} className="mb-1 transition-colors" />
                                 <span className="text-[10px] transition-colors">
-                                    {uploading ? '업로드 중...' : '이미지 첨부하기'}
+                                    {uploading ? '업로드 중...' : '이미지 또는 동영상 첨부하기'}
                                 </span>
                                 <input
                                     type="file"
-                                    accept="image/*"
-                                    onChange={handleImageUpload}
+                                    accept="image/*,video/*"
+                                    onChange={handleFileUpload}
                                     disabled={uploading}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
                                 />

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useUserRole } from "@/hooks/use-user-role"
 import { Upload, X } from 'lucide-react'
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
+import { VideoPreview } from "@/components/ui/video-preview"
 
 interface Question {
     id: string
@@ -18,7 +19,9 @@ interface Question {
     final_answer?: string
     user_id: string
     lecture_id?: string
-    lecture_title?: string // Join result if needed
+    lecture_title?: string
+    video_url?: string
+    answer_video_url?: string
 }
 
 export function AnswerSection({ question }: { question: Question }) {
@@ -29,6 +32,7 @@ export function AnswerSection({ question }: { question: Question }) {
     // Local state for UI updates
     const [status, setStatus] = useState(question.status)
     const [finalAnswer, setFinalAnswer] = useState(question.final_answer || '')
+    const [answerVideoUrl, setAnswerVideoUrl] = useState<string | null>(question.answer_video_url || null)
 
     const [isEditing, setIsEditing] = useState(false)
     const [draft, setDraft] = useState(question.final_answer || question.ai_draft_answer || '')
@@ -38,6 +42,7 @@ export function AnswerSection({ question }: { question: Question }) {
     const startEditing = () => {
         setIsEditing(true)
         setDraft(finalAnswer || question.ai_draft_answer || '')
+        setAnswerVideoUrl(question.answer_video_url || null)
     }
 
     const cancelEditing = () => {
@@ -45,7 +50,7 @@ export function AnswerSection({ question }: { question: Question }) {
         setDraft('')
     }
 
-    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return
 
         try {
@@ -53,9 +58,10 @@ export function AnswerSection({ question }: { question: Question }) {
             const file = e.target.files[0]
             const fileExt = file.name.split('.').pop()
             const fileName = `answer_${question.id}_${Math.random()}.${fileExt}`
-            const filePath = `answers/${fileName}` // Storing in 'answers' folder if possible, or root
+            const filePath = `answers/${fileName}`
+            const isVideo = file.type.startsWith('video/')
 
-            // Reuse 'question-images' bucket for simplicity as we know it exists
+            // Reuse 'question-images' bucket for simplicity
             const { error: uploadError } = await supabase.storage
                 .from('question-images')
                 .upload(filePath, file)
@@ -66,15 +72,20 @@ export function AnswerSection({ question }: { question: Question }) {
                 .from('question-images')
                 .getPublicUrl(filePath)
 
-            // Append Markdown Image to Draft
-            const imageMarkdown = `\n\n![첨부 이미지](${publicUrl})\n`
-            setDraft(prev => prev + imageMarkdown)
+            if (isVideo) {
+                setAnswerVideoUrl(publicUrl)
+                // Optionally append text to draft saying "[Video Attached]"? 
+                // No, UI handles it separately.
+            } else {
+                // Append Markdown Image to Draft
+                const imageMarkdown = `\n\n![첨부 이미지](${publicUrl})\n`
+                setDraft(prev => prev + imageMarkdown)
+            }
 
         } catch (error: any) {
-            alert('이미지 업로드 실패: ' + error.message)
+            alert('파일 업로드 실패: ' + error.message)
         } finally {
             setUploading(false)
-            // Reset input
             e.target.value = ''
         }
     }
@@ -82,11 +93,11 @@ export function AnswerSection({ question }: { question: Question }) {
     const submitAnswer = async () => {
         setLoading(true)
 
-        // Removed automated signature as per user request ("I'll reveal it myself")
         const answerToSave = draft
 
         const { error } = await supabase.from('questions').update({
             final_answer: answerToSave,
+            answer_video_url: answerVideoUrl, // Save video URL
             status: 'answered'
         }).eq('id', question.id)
 
@@ -112,6 +123,12 @@ export function AnswerSection({ question }: { question: Question }) {
                     <div className="text-gray-800">
                         <MarkdownRenderer content={finalAnswer} />
                     </div>
+                    {/* Display Answer Video */}
+                    {answerVideoUrl && (
+                        <div className="mt-4 max-w-lg">
+                            <VideoPreview src={answerVideoUrl} />
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -150,6 +167,18 @@ export function AnswerSection({ question }: { question: Question }) {
                             value={draft}
                             onChange={(e) => setDraft(e.target.value)}
                         />
+
+                        {/* Video Preview in Editor */}
+                        {answerVideoUrl && (
+                            <div className="mt-2 max-w-sm">
+                                <VideoPreview
+                                    src={answerVideoUrl}
+                                    onRemove={() => setAnswerVideoUrl(null)}
+                                    editable
+                                />
+                            </div>
+                        )}
+
                         {/* Toolbar */}
                         <div className="absolute bottom-3 right-3 flex gap-2">
                             <div className="relative">
@@ -160,12 +189,12 @@ export function AnswerSection({ question }: { question: Question }) {
                                     disabled={uploading}
                                 >
                                     <Upload size={14} />
-                                    {uploading ? '업로드...' : '이미지 추가'}
+                                    {uploading ? '업로드...' : '이미지/동영상 추가'}
                                 </Button>
                                 <input
                                     type="file"
-                                    accept="image/*"
-                                    onChange={handleImageUpload}
+                                    accept="image/*,video/*"
+                                    onChange={handleFileUpload}
                                     disabled={uploading}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
                                 />

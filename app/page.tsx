@@ -22,27 +22,31 @@ export default function Home() {
         </div>
 
         <div className="relative z-10 container mx-auto px-6 text-center">
-          <div className="inline-flex items-center gap-2 mb-6 px-4 py-1 border border-white/30 rounded-full text-sm font-light tracking-wide text-gray-300 backdrop-blur-sm">
+          <div className="inline-flex items-center gap-2 mb-6 px-4 py-1 border border-white/30 rounded-full text-sm font-light tracking-wide text-gray-300 backdrop-blur-sm animate-fade-in-up">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
             </span>
             2027학년도 수강생 모집 중
           </div>
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-8 leading-tight font-sans">
+
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-8 leading-tight font-sans animate-fade-in-up delay-200">
             결국, 승부는<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-gray-500">끝에서 뒤집힙니다.</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-gray-500 inline-block animate-float">끝에서 뒤집힙니다.</span>
           </h1>
-          <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-12 leading-relaxed font-light">
+
+          <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-12 leading-relaxed font-light animate-fade-in-up delay-500">
             11월의 기초공사부터 수능 날의 마지막 스퍼트까지.<br />
             당신의 '1등급 역전극', 저희 TeamDJ가 앞에서 끌고 뒤에서 밀겠습니다.
           </p>
 
-          <Link href="#curriculum">
-            <Button size="lg" className="h-14 px-10 text-lg bg-white text-black hover:bg-gray-200 rounded-none transform transition-transform hover:-translate-y-1">
-              커리큘럼 확인하기 <ArrowRight className="ml-2 w-4 h-4" />
-            </Button>
-          </Link>
+          <div className="animate-fade-in-up delay-500">
+            <Link href="#curriculum">
+              <Button size="lg" className="h-14 px-10 text-lg bg-white text-black hover:bg-gray-200 rounded-none transform transition-transform hover:-translate-y-1">
+                커리큘럼 확인하기 <ArrowRight className="ml-2 w-4 h-4" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -158,9 +162,9 @@ export default function Home() {
 
 function StatCard({ label, value, sub }: { label: string, value: string, sub: string }) {
   return (
-    <div className="p-8 border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-xl transition-all duration-300 text-center group">
+    <div className="p-4 xl:p-8 border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-xl transition-all duration-300 text-center group">
       <p className="text-sm text-gray-500 mb-2 font-medium">{label}</p>
-      <h3 className="text-4xl md:text-5xl font-bold text-black mb-4 group-hover:scale-110 transition-transform font-sans">{value}</h3>
+      <h3 className="text-3xl md:text-4xl xl:text-5xl font-bold text-black mb-4 group-hover:scale-110 transition-transform font-sans break-words">{value}</h3>
       <p className="text-xs text-gray-400">{sub}</p>
     </div>
   )

@@ -2,6 +2,7 @@ import { PublicNavbar } from "@/components/layout/public-navbar"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { AnswerSection } from "@/components/questions/answer-section"
+import { VideoPreview } from "@/components/ui/video-preview"
 
 export default async function QuestionDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -57,6 +58,12 @@ export default async function QuestionDetailPage({ params }: { params: Promise<{
                                 alt="질문 첨부 이미지"
                                 className="rounded-xl border border-gray-200 max-h-[500px] object-contain bg-gray-50"
                             />
+                        </div>
+                    )}
+
+                    {question.video_url && (
+                        <div className="mt-6 max-w-2xl">
+                            <VideoPreview src={question.video_url} />
                         </div>
                     )}
                 </div>
