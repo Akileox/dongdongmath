@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { useUserRole } from "@/hooks/use-user-role"
 import { QuestionForm } from "@/components/questions/question-form"
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer"
+import Link from 'next/link'
 
 // Simulated Badge
 const BadgeSim = ({ children, variant }: { children: React.ReactNode, variant: 'default' | 'secondary' | 'outline' | 'success' }) => {
@@ -137,95 +138,66 @@ export function QuestionList({ lectureId, initialTimestamp, onClearTimestamp }: 
                 )}
 
                 {questions.map((q) => (
-                    <Card key={q.id} className="bg-white border-gray-200 shadow-sm transition-all hover:shadow-md">
-                        <CardContent className="p-5 space-y-3">
-                            <div className="flex justify-between items-start">
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="bg-black text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                            {formatTime(q.timestamp_seconds)}
-                                        </span>
-                                        {q.status === 'answered' ? (
-                                            <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded border border-transparent">
-                                                답변완료
+                    <Link href={`/questions/${q.id}`} key={q.id} className="block group">
+                        <Card className="bg-white border-gray-200 shadow-sm transition-all hover:shadow-md hover:border-blue-200 cursor-pointer">
+                            <CardContent className="p-5 space-y-3">
+                                <div className="flex justify-between items-start">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="bg-black text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                                {formatTime(q.timestamp_seconds)}
                                             </span>
-                                        ) : (
-                                            <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-gray-200">
-                                                검토중
-                                            </span>
-                                        )}
+                                            {q.status === 'answered' ? (
+                                                <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded border border-transparent">
+                                                    답변완료
+                                                </span>
+                                            ) : (
+                                                <span className="bg-gray-100 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-gray-200">
+                                                    검토중
+                                                </span>
+                                            )}
+                                        </div>
+                                        <h4 className="font-bold text-gray-900 text-base group-hover:text-blue-600 transition-colors">
+                                            {q.title || '제목 없음'}
+                                        </h4>
                                     </div>
-                                    <h4 className="font-bold text-gray-900 text-base">
-                                        {q.title || '제목 없음'}
-                                    </h4>
+                                    <span className="text-xs text-gray-400 whitespace-nowrap">
+                                        {new Date(q.created_at).toLocaleDateString()}
+                                    </span>
                                 </div>
-                                <span className="text-xs text-gray-400 whitespace-nowrap">
-                                    {new Date(q.created_at).toLocaleDateString()}
-                                </span>
-                            </div>
 
-                            <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-3 rounded-lg">
-                                {q.content}
-                            </p>
+                                <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-3 rounded-lg line-clamp-2">
+                                    {q.content}
+                                </p>
 
-                            {/* Question Image */}
-                            {q.image_url && (
-                                <div className="mt-3">
-                                    <img
-                                        src={q.image_url}
-                                        alt="Question Attachment"
-                                        className="rounded-lg border border-gray-200 max-h-60 object-contain bg-gray-50"
-                                    />
-                                </div>
-                            )}
-
-                            {/* Answer Section */}
-                            {q.status === 'answered' && (
-                                <div className="bg-blue-50/50 rounded-lg p-4 mt-3 border border-blue-100">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold">T</div>
-                                        <span className="text-sm font-bold text-blue-900">선생님 답변</span>
+                                {/* Question Image Thumbnail */}
+                                {q.image_url && (
+                                    <div className="mt-2">
+                                        <div className="h-20 w-20 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden relative">
+                                            <img
+                                                src={q.image_url}
+                                                alt="Attachment"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="text-sm text-gray-800 leading-relaxed">
-                                        <MarkdownRenderer content={q.final_answer || ''} />
-                                    </div>
-                                </div>
-                            )}
+                                )}
 
-                            {/* Admin Controls */}
-                            {isAdmin && answeringId !== q.id && (
-                                <Button
-                                    onClick={() => startAnswering(q)}
-                                    size="sm"
-                                    className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold h-9 shadow-sm"
-                                >
-                                    {q.status === 'answered' ? '답변 수정하기' : '답변 작성하기 (관리자)'}
-                                </Button>
-                            )}
-
-                            {/* Answer Editor */}
-                            {isAdmin && answeringId === q.id && (
-                                <div className="mt-4 space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200 animate-in fade-in zoom-in-95 duration-200">
-                                    <div className="flex justify-between items-center text-xs font-bold text-gray-700">
-                                        <span>답변 작성</span>
-                                        {q.ai_draft_answer && <span className="text-blue-600 bg-blue-100 px-2 py-0.5 rounded text-[10px]">AI 초안 불러옴</span>}
+                                {/* Answer Preview (Read-Only) */}
+                                {q.status === 'answered' && (
+                                    <div className="bg-blue-50/50 rounded-lg p-3 mt-3 border border-blue-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className="w-4 h-4 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold">T</div>
+                                            <span className="text-xs font-bold text-blue-900">선생님 답변</span>
+                                        </div>
+                                        <p className="text-xs text-gray-600 line-clamp-2">
+                                            (상세보기에서 확인하세요)
+                                        </p>
                                     </div>
-                                    <textarea
-                                        className="w-full bg-white border border-gray-300 rounded-lg p-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent min-h-[100px]"
-                                        placeholder="답변 내용을 입력하세요..."
-                                        value={answerDraft}
-                                        onChange={(e) => setAnswerDraft(e.target.value)}
-                                    />
-                                    <div className="flex justify-end gap-2">
-                                        <Button size="sm" variant="secondary" onClick={cancelAnswering} className="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold">취소</Button>
-                                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md" onClick={() => submitAnswer(q.id)}>
-                                            답변 등록
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </Link>
                 ))}
             </div>
         </div>

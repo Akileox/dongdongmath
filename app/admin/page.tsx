@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ClassManager } from "@/components/admin/class-manager"
 import { ScoreInputGrid } from "@/components/admin/score-input-grid"
 import { StudentManager } from "@/components/admin/student-manager"
@@ -13,6 +14,14 @@ import { NoticeManager } from "@/components/admin/notice-manager"
 import { LectureManager } from "@/components/admin/lecture-manager"
 
 export default function AdminPage() {
+    const router = useRouter()
+    const supabase = createClient()
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut()
+        router.push('/login')
+    }
+
     return (
         <div className="max-w-[1400px] mx-auto py-10 px-6 space-y-6 pb-20">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -24,6 +33,7 @@ export default function AdminPage() {
                     <Link href="/dashboard">
                         <Button variant="outline">🏠 학생 대시보드로 이동</Button>
                     </Link>
+                    <Button variant="destructive" onClick={handleLogout}>로그아웃</Button>
                 </div>
             </div>
 
@@ -60,24 +70,10 @@ export default function AdminPage() {
 
                 {/* 4. 수업/영상 (YouTube) */}
                 <TabsContent value="content" className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>유튜브 강의 관리 (준비 중)</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="p-10 border-2 border-dashed rounded-xl text-center text-gray-400">
-                                <h3 className="text-lg font-bold text-gray-600 mb-2">재생목록 통합 등록 기능 개발 예정</h3>
-                                <p>유튜브 재생목록 링크를 입력하면 자동으로 강의 목차를 생성하고 영상을 등록하는 기능을 준비하고 있습니다.</p>
-                                <Button variant="blue" className="mt-4" disabled>기능 준비 중</Button>
-                            </div>
-                        </CardContent>
-                    </Card>
 
-                    {/* Manual Registration */}
-                    <div className="mt-6 border-t pt-6">
-                        <h3 className="text-xl font-bold mb-4 text-gray-800">수동 개별 등록</h3>
-                        <LectureManager />
-                    </div>
+                    {/* Unified Lecture Manager */}
+                    <LectureManager />
+
                 </TabsContent>
 
                 {/* 5. 운영 (공지/Q&A) */}

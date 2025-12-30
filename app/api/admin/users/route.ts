@@ -35,6 +35,7 @@ export async function POST(request: Request) {
                     name: user.real_name || user.name,     // Real Name
                     nickname: user.nickname,               // Store nickname explicitly
                     phone: user.phone,
+                    parent_phone: user.parent_phone,
                     grade: user.grade,
                     school: user.school,
                     role: user.role || 'student',

@@ -26,7 +26,7 @@ export function StudentManager() {
     const [uploadResult, setUploadResult] = useState<{ success: number, fail: number, errors: string[] } | null>(null)
 
     // Individual Add State
-    const [newStudent, setNewStudent] = useState({ name: '', phone: '', grade: '', school: '', role: 'student' })
+    const [newStudent, setNewStudent] = useState({ name: '', phone: '', parent_phone: '', grade: '', school: '', role: 'student' })
 
     // Assistant Register State
     const [newAssistant, setNewAssistant] = useState({ id: '', realName: '', nickname: '', password: '', phone: '' })
@@ -220,6 +220,7 @@ export function StudentManager() {
             email: `${id}@teamdj.com`,
             name: finalName,
             phone: newStudent.phone,
+            parent_phone: newStudent.parent_phone,
             grade: newStudent.grade,
             school: newStudent.school,
             role: newStudent.role
@@ -234,7 +235,7 @@ export function StudentManager() {
             const data = await res.json()
             if (res.ok && data.results[0].status === 'success') {
                 alert('등록되었습니다.')
-                setNewStudent({ name: '', phone: '', grade: '', school: '', role: 'student' })
+                setNewStudent({ name: '', phone: '', parent_phone: '', grade: '', school: '', role: 'student' })
                 setActiveTab('list')
             } else {
                 alert('등록 실패: ' + (data.results[0]?.error || data.error))

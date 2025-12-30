@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 
 interface IndividualRegistrationProps {
-    newStudent: { name: string, phone: string, grade: string, school: string, role: string }
+    newStudent: { name: string, phone: string, parent_phone: string, grade: string, school: string, role: string }
     setNewStudent: (student: any) => void
     handleIndividualAdd: () => void
     loading: boolean
@@ -29,13 +29,23 @@ export function IndividualRegistration({
                     placeholder="홍길동"
                 />
             </div>
-            <div className="space-y-2">
-                <label className="text-sm font-medium">전화번호 (ID)</label>
-                <Input
-                    value={newStudent.phone}
-                    onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
-                    placeholder="010-0000-0000"
-                />
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">학생 휴대폰 (ID)</label>
+                    <Input
+                        value={newStudent.phone}
+                        onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
+                        placeholder="010-0000-0000"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">학부모 휴대폰</label>
+                    <Input
+                        value={newStudent.parent_phone}
+                        onChange={(e) => setNewStudent({ ...newStudent, parent_phone: e.target.value })}
+                        placeholder="010-0000-0000"
+                    />
+                </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

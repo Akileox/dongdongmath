@@ -1,97 +1,149 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowRight, BookOpen, TrendingUp, Award, Clock } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { ArrowRight, BookOpen, TrendingUp, Award, Clock, PlayCircle, CheckSquare, Calendar as CalendarIcon, LogOut, Plus, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { ScoreChart } from "@/components/dashboard/score-chart"
 import { useRouter } from 'next/navigation'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useUserRole } from "@/hooks/use-user-role"
+import { Input } from "@/components/ui/input"
+
+const CourseCard = ({ course, hideGradeTag }: { course: any, hideGradeTag?: boolean }) => {
+    const displaySection = hideGradeTag ? course.section.replace(/\[.*?\]\s*/, '') : course.section
+
+    return (
+        <Link href={`/dashboard/lectures/${course.id}`} className="block group h-full">
+            <div className="h-full flex flex-col bg-white border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+                <div className="aspect-video bg-gray-100 relative overflow-hidden">
+                    {course.youtube_link ? (
+                        <img
+                            src={`https://img.youtube.com/vi/${course.youtube_link.split('v=')[1]?.split('&')[0]}/mqdefault.jpg`}
+                            alt={course.title}
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-400">
+                            <PlayCircle className="w-10 h-10 opacity-50" />
+                        </div>
+                    )}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                        <PlayCircle className="text-white w-12 h-12 drop-shadow-lg" />
+                    </div>
+                </div>
+                <div className="p-4 flex-1 flex flex-col space-y-2">
+                    <div className="flex items-center gap-2">
+                        <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-none whitespace-nowrap">
+                            {displaySection}
+                        </Badge>
+                    </div>
+                    <h4 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors text-base line-clamp-1">
+                        {course.title}
+                    </h4>
+                    <p className="text-xs text-gray-500 line-clamp-2">
+                        {course.description || '강의 설명이 없습니다.'}
+                    </p>
+                </div>
+            </div>
+        </Link>
+    )
+}
+
 
 export function DashboardClient() {
     const [stats, setStats] = useState({
         avgScore: 0,
-        topPercent: 0,
+        topPercent: 0, // Mock for now or calc
         recentDays: 0,
         totalQuestions: 0
     })
     const [examResults, setExamResults] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [userName, setUserName] = useState('')
+    const [courses, setCourses] = useState<any[]>([])
+    const [todos, setTodos] = useState<any[]>([])
+    const [newTodo, setNewTodo] = useState('')
+    const [addingTodo, setAddingTodo] = useState(false)
 
     const supabase = createClient()
     const router = useRouter()
+    const { isAdmin, user } = useUserRole()
 
     useEffect(() => {
-        async function loadData() {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) {
-                // Redirect or show demo data? 
-                // For this request, let's assume demo if not logged in, or redirect.
-                // Redirecting to login seems safer.
-                // router.push('/login')
-                // But for development speed, I'll allow viewing with dummy data if auth fails, or just return.
-                // Let's implement real fetch logic first.
-            }
-            if (user?.user_metadata?.name) {
-                setUserName(user.user_metadata.name)
-            } else {
-                setUserName('학생')
-            }
+        if (!user) return
 
-            // Fetch Exam Results
-            // We need a join: exam_results(score, rank_percent, feedback) + exams(title, date, average_score)
-            // Since Supabase join syntax is: select('*, exams(*)')
-            // But we created schema just now? Oh wait, I haven't executed the SCHEMA SQL yet!
-            // I need to provide the Schema to the user.
-            // So for now, the fetch will fail if tables don't exist.
-            // I will implement the fetch assuming tables exist, and handle error by showing empty/mock.
+        async function loadData() {
+            setUserName(user?.user_metadata?.name || '학생')
 
             try {
-                // Fetch Exam Results joined with Exams
-                // Schema found: exam_results(score, rank, feedback, student_id) join exams(title, exam_date, total_score)
-                const { data, error } = await supabase
+                // 1. Fetch Lectures (Group by Section)
+                const { data: lecturesData } = await supabase
+                    .from('lectures')
+                    .select('*')
+                    .order('created_at', { ascending: true })
+
+                if (lecturesData) {
+                    const sectionMap = new Map()
+                    lecturesData.forEach(lecture => {
+                        if (!sectionMap.has(lecture.section)) {
+                            sectionMap.set(lecture.section, lecture)
+                        }
+                    })
+                    setCourses(Array.from(sectionMap.values()))
+                }
+
+                // 2. Fetch Exam Results
+                const { data: resultsData } = await supabase
                     .from('exam_results')
                     .select(`
                         id,
                         score,
                         rank,
-                        feedback,
-                        exams (
-                            title,
-                            exam_date,
-                            total_score
-                        )
+                        exams (title, exam_date, total_score)
                     `)
-                    .eq('student_id', user?.id)
+                    .eq('student_id', user!.id)
                     .order('exams(exam_date)', { ascending: true })
                     .limit(10)
 
-                if (data && data.length > 0) {
-                    // Process Data
-                    const formatted = data.map((item: any) => ({
+                if (resultsData && resultsData.length > 0) {
+                    const params = resultsData.map((item: any) => ({
                         date: new Date(item.exams.exam_date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' }),
                         score: item.score,
-                        average: 0, // Not available in schema image, defaulting to 0 or need calculation
+                        average: 0,
                         title: item.exams.title,
                         fullDate: item.exams.exam_date,
                         id: item.id
                     }))
-                    setExamResults(formatted)
+                    setExamResults(params)
 
-                    // Calculate Stats
-                    const avg = data.reduce((acc: number, cur: any) => acc + cur.score, 0) / data.length
+                    const avg = params.reduce((acc: number, cur: any) => acc + cur.score, 0) / params.length
                     setStats(prev => ({ ...prev, avgScore: Math.round(avg * 10) / 10 }))
-                } else {
-                    // Fallback Mock Data if DB empty (for demo)
-                    setExamResults([
-                        { date: '12/01', score: 70, average: 65, title: '12월 1주차 주간평가', fullDate: '2023-12-01', id: '1' },
-                        { date: '12/08', score: 82, average: 68, title: '12월 2주차 주간평가', fullDate: '2023-12-08', id: '2' },
-                        { date: '12/15', score: 78, average: 70, title: '12월 3주차 주간평가', fullDate: '2023-12-15', id: '3' },
-                    ])
-                    setStats({ avgScore: 76.6, topPercent: 15, recentDays: 3, totalQuestions: 12 })
                 }
+
+                // 3. Fetch Todos
+                const { data: todoData } = await supabase
+                    .from('todos')
+                    .select('*')
+                    .eq('user_id', user!.id)
+                    .order('created_at', { ascending: false })
+                if (todoData) setTodos(todoData)
+
+                // 4. Fetch Question Count
+                const { count: questionCount } = await supabase
+                    .from('questions')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('author_id', user!.id)
+
+                // 5. Fetch Recent Learning (Learning History) - if implemented, else mock logic from lectures
+                // Assuming learning_history table or similar
+                // const { data: history } = await supabase.from('learning_history').select('last_watched_at').eq('user_id', user!.id).order('last_watched_at', { ascending: false }).limit(1)
+                // Using 0 for now as table might be empty
+                setStats(prev => ({ ...prev, totalQuestions: questionCount || 0, recentDays: 0 }))
+
             } catch (e) {
                 console.error(e)
             } finally {
@@ -99,7 +151,42 @@ export function DashboardClient() {
             }
         }
         loadData()
-    }, [supabase, router])
+    }, [supabase, user])
+
+    const handleAddTodo = async () => {
+        if (!newTodo.trim() || !user) return
+        const { data, error } = await supabase.from('todos').insert({
+            content: newTodo,
+            user_id: user.id,
+            is_done: false
+        }).select().single()
+
+        if (error) {
+            alert('할 일을 저장하지 못했습니다. 관리자에게 문의하세요.')
+            console.error(error)
+            return
+        }
+
+        if (data) {
+            setTodos([data, ...todos])
+            setNewTodo('')
+            setAddingTodo(false)
+        }
+    }
+
+    const toggleTodo = async (id: string, currentStatus: boolean) => {
+        const { error } = await supabase.from('todos').update({ is_done: !currentStatus }).eq('id', id)
+        if (!error) {
+            setTodos(todos.map(t => t.id === id ? { ...t, is_done: !currentStatus } : t))
+        }
+    }
+
+    const deleteTodo = async (id: string) => {
+        const { error } = await supabase.from('todos').delete().eq('id', id)
+        if (!error) {
+            setTodos(todos.filter(t => t.id !== id))
+        }
+    }
 
     return (
         <div className="min-h-screen bg-gray-50/50">
@@ -108,13 +195,24 @@ export function DashboardClient() {
                 <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                     <h1 className="font-bold text-xl flex items-center gap-2">
                         <span className="bg-blue-600 text-white w-8 h-8 rounded-lg flex items-center justify-center text-lg">D</span>
-                        동동수학 <span className="text-gray-400 font-normal">|</span> 학습 대시보드
+                        학습 대시보드
                     </h1>
                     <div className="flex items-center gap-4">
                         <div className="text-sm text-gray-500">
                             <span className="font-bold text-gray-900">{userName}</span>님, 환영합니다!
                         </div>
-                        <Button variant="outline" size="sm" className="rounded-full" onClick={() => router.push('/')}>메인으로</Button>
+                        {isAdmin ? (
+                            <Button variant="default" size="sm" className="rounded-full bg-slate-800 hover:bg-slate-700" onClick={() => router.push('/admin')}>
+                                관리자 대시보드
+                            </Button>
+                        ) : (
+                            <Button variant="outline" size="sm" className="rounded-full" onClick={() => router.push('/')}>
+                                메인으로
+                            </Button>
+                        )}
+                        {/* <Button variant="ghost" size="icon" onClick={() => { supabase.auth.signOut(); router.push('/login') }} className="text-gray-400 hover:text-red-500">
+                            <LogOut className="w-4 h-4" />
+                        </Button> */}
                     </div>
                 </div>
             </div>
@@ -130,7 +228,7 @@ export function DashboardClient() {
                         <CardContent>
                             <div className="text-2xl font-black text-gray-900">{stats.avgScore}<span className="text-sm text-gray-400 font-normal ml-1">점</span></div>
                             <p className="text-xs text-red-500 font-medium mt-1">
-                                +4.2% <span className="text-gray-400 font-normal">지난달 대비</span>
+                                +4.2% <span className="text-gray-400 font-normal">지난달 대비 (준비중)</span>
                             </p>
                         </CardContent>
                     </Card>
@@ -140,9 +238,9 @@ export function DashboardClient() {
                             <Award className="h-4 w-4 text-blue-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-black text-gray-900">{stats.topPercent}<span className="text-sm text-gray-400 font-normal ml-1">%</span></div>
+                            <div className="text-2xl font-black text-gray-900">{stats.topPercent || '-'}<span className="text-sm text-gray-400 font-normal ml-1">%</span></div>
                             <p className="text-xs text-blue-500 font-medium mt-1">
-                                안정권 <span className="text-gray-400 font-normal">1등급 유지 중</span>
+                                안정권 <span className="text-gray-400 font-normal">1등급 유지 중 (준비중)</span>
                             </p>
                         </CardContent>
                     </Card>
@@ -154,7 +252,7 @@ export function DashboardClient() {
                         <CardContent>
                             <div className="text-2xl font-black text-gray-900">{stats.recentDays}<span className="text-sm text-gray-400 font-normal ml-1">일 전</span></div>
                             <p className="text-xs text-gray-400 mt-1">
-                                마지막 테스트: {examResults[examResults.length - 1]?.title || '-'}
+                                마지막 활동이 없습니다.
                             </p>
                         </CardContent>
                     </Card>
@@ -172,6 +270,63 @@ export function DashboardClient() {
                     </Card>
                 </div>
 
+                {/* My Courses (Sections) */}
+                <Card className="border-none shadow-sm bg-white overflow-hidden">
+                    <CardHeader className="border-b border-gray-100 pb-3">
+                        <CardTitle className="text-lg font-bold flex items-center gap-2">
+                            <BookOpen className="text-blue-600 w-5 h-5" />
+                            수강 중인 강좌
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                        {loading && <div className="text-center text-gray-400">강좌 정보를 불러오는 중입니다...</div>}
+
+                        {!loading && courses.length === 0 && (
+                            <div className="text-center text-gray-400">
+                                <p>수강 중인 강좌가 없습니다.</p>
+                            </div>
+                        )}
+
+                        {!loading && courses.length > 0 && (
+                            <Tabs defaultValue="all" className="w-full">
+                                <TabsList className="mb-6 h-auto p-1 bg-gray-100/50 rounded-lg">
+                                    <TabsTrigger value="all" className="px-4 py-2 rounded-md font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">전체</TabsTrigger>
+                                    {['고1', '고2', '고3', '기타'].filter(grade => courses.some(c => c.section.includes(`[${grade}]`))).map(grade => (
+                                        <TabsTrigger key={grade} value={grade} className="px-4 py-2 rounded-md font-bold data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-sm">
+                                            {grade}
+                                        </TabsTrigger>
+                                    ))}
+                                </TabsList>
+
+                                {/* All Tab */}
+                                <TabsContent value="all" className="mt-0">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {courses.map((course, i) => (
+                                            <CourseCard key={course.id} course={course} />
+                                        ))}
+                                    </div>
+                                </TabsContent>
+
+                                {/* Grade Tabs */}
+                                {['고1', '고2', '고3', '기타'].map(grade => (
+                                    <TabsContent key={grade} value={grade} className="mt-0">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {courses.filter(c => c.section.includes(`[${grade}]`)).map((course) => (
+                                                <CourseCard key={course.id} course={course} hideGradeTag />
+                                            ))}
+                                            {courses.filter(c => c.section.includes(`[${grade}]`)).length === 0 && (
+                                                <div className="col-span-full text-center py-10 text-gray-400">
+                                                    강좌가 없습니다.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </TabsContent>
+                                ))}
+                            </Tabs>
+                        )}
+                    </CardContent>
+                </Card>
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Main Chart */}
                     <div className="lg:col-span-2 space-y-6">
@@ -185,8 +340,9 @@ export function DashboardClient() {
                                         <span className="text-gray-400 text-sm">로딩 중...</span>
                                     </div>
                                 ) : (
-                                    <div className="h-[300px]">
+                                    <div className="h-[300px] relative">
                                         <ScoreChart data={examResults} />
+                                        {examResults.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-gray-400">성적 데이터가 없습니다.</div>}
                                     </div>
                                 )}
                             </CardContent>
@@ -253,23 +409,50 @@ export function DashboardClient() {
                         </Card>
 
                         <Card className="border-none shadow-sm">
-                            <CardHeader>
-                                <CardTitle className="text-sm font-bold text-gray-500">학습 캘린더</CardTitle>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-bold text-gray-500 flex items-center justify-between">
+                                    <span>To-Do List</span>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setAddingTodo(true)}>
+                                        <Plus className="w-4 h-4" />
+                                    </Button>
+                                </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="grid grid-cols-7 gap-1 text-center text-xs">
-                                    <div className="text-gray-300 py-1">일</div>
-                                    <div className="text-gray-300 py-1">월</div>
-                                    <div className="text-gray-300 py-1">화</div>
-                                    <div className="text-gray-300 py-1">수</div>
-                                    <div className="text-gray-300 py-1">목</div>
-                                    <div className="text-gray-300 py-1">금</div>
-                                    <div className="text-gray-300 py-1">토</div>
-                                    {Array.from({ length: 31 }).map((_, i) => (
-                                        <div key={i} className={`py-2 rounded-full cursor-pointer hover:bg-gray-100 ${i === 27 ? 'bg-blue-600 text-white font-bold hover:bg-blue-700' : 'text-gray-600'}`}>
-                                            {i + 1}
+                                <div className="space-y-3">
+                                    {addingTodo && (
+                                        <div className="flex gap-2 mb-2">
+                                            <Input
+                                                value={newTodo}
+                                                onChange={e => setNewTodo(e.target.value)}
+                                                placeholder="할 일을 입력하세요"
+                                                className="h-8 text-sm"
+                                                onKeyDown={e => e.key === 'Enter' && handleAddTodo()}
+                                            />
+                                            <Button size="sm" onClick={handleAddTodo} className="h-8">추가</Button>
+                                        </div>
+                                    )}
+                                    {todos.map((todo) => (
+                                        <div key={todo.id} className="flex items-start gap-3 group">
+                                            <div
+                                                className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${todo.is_done ? 'bg-blue-500 border-blue-500' : 'border-gray-300 hover:border-blue-500'}`}
+                                                onClick={() => toggleTodo(todo.id, todo.is_done)}
+                                            >
+                                                {todo.is_done && <CheckSquare className="w-3 h-3 text-white" />}
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className={`text-sm ${todo.is_done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{todo.content}</p>
+                                                <p className="text-[10px] mt-0.5 text-gray-400">{new Date(todo.created_at).toLocaleDateString()}</p>
+                                            </div>
+                                            <Button variant="ghost" size="icon" className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-500" onClick={() => deleteTodo(todo.id)}>
+                                                <Trash2 className="w-3 h-3" />
+                                            </Button>
                                         </div>
                                     ))}
+                                    {todos.length === 0 && !addingTodo && (
+                                        <div className="text-center text-xs text-gray-400 py-4 cursor-pointer" onClick={() => setAddingTodo(true)}>
+                                            + 할 일 추가하기
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>

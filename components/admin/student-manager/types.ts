@@ -2,6 +2,7 @@ export type Student = {
     id: string
     full_name: string
     phone: string
+    parent_phone?: string
     grade: string
     school: string
     role: string
