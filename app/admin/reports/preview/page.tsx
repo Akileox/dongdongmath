@@ -71,7 +71,7 @@ export default function ReportPreviewPage() {
                 backgroundColor: null, // Transparent or inherited
                 useCORS: true, // For external images
                 logging: true,
-            })
+            } as any)
 
             const imageData = canvas.toDataURL('image/png')
             setPreviewImage(imageData)
