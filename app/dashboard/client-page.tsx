@@ -13,9 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useUserRole } from "@/hooks/use-user-role"
 import { Input } from "@/components/ui/input"
 
-const CourseCard = ({ course, hideGradeTag }: { course: any, hideGradeTag?: boolean }) => {
+const CourseCard = ({ course, hideGradeTag, isAssigned }: { course: any, hideGradeTag?: boolean, isAssigned?: boolean }) => {
     const displaySection = hideGradeTag ? course.section.replace(/\[.*?\]\s*/, '') : course.section
-
     return (
         <Link href={`/dashboard/lectures/${course.id}`} className="block group h-full">
             <div className="h-full flex flex-col bg-white border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
@@ -31,9 +30,6 @@ const CourseCard = ({ course, hideGradeTag }: { course: any, hideGradeTag?: bool
                             <PlayCircle className="w-10 h-10 opacity-50" />
                         </div>
                     )}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
-                        <PlayCircle className="text-white w-12 h-12 drop-shadow-lg" />
-                    </div>
                 </div>
                 <div className="p-4 flex-1 flex flex-col space-y-2">
                     <div className="flex items-center gap-2">
@@ -48,8 +44,8 @@ const CourseCard = ({ course, hideGradeTag }: { course: any, hideGradeTag?: bool
                         {course.description || '강의 설명이 없습니다.'}
                     </p>
                 </div>
-            </div>
-        </Link>
+            </div >
+        </Link >
     )
 }
 
@@ -59,12 +55,14 @@ export function DashboardClient() {
         avgScore: 0,
         topPercent: 0, // Mock for now or calc
         recentDays: 0,
-        totalQuestions: 0
+        totalQuestions: 0,
+        attendanceDays: 0
     })
     const [examResults, setExamResults] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [userName, setUserName] = useState('')
     const [courses, setCourses] = useState<any[]>([])
+    const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set())
     const [todos, setTodos] = useState<any[]>([])
     const [newTodo, setNewTodo] = useState('')
     const [addingTodo, setAddingTodo] = useState(false)
@@ -80,6 +78,15 @@ export function DashboardClient() {
             setUserName(user?.user_metadata?.name || '학생')
 
             try {
+                // 0. Fetch Profile & Assignments
+                const { data: profile } = await supabase.from('profiles').select('grade').eq('id', user!.id).single()
+                const { data: assignments } = await supabase.from('lecture_assignments').select('lecture_id').eq('student_id', user!.id)
+
+                const myAssignedIds = new Set(assignments?.map(a => a.lecture_id) || [])
+                setAssignedIds(myAssignedIds)
+
+                const userGrade = profile?.grade
+
                 // 1. Fetch Lectures (Group by Section)
                 const { data: lecturesData } = await supabase
                     .from('lectures')
@@ -87,8 +94,21 @@ export function DashboardClient() {
                     .order('created_at', { ascending: true })
 
                 if (lecturesData) {
+                    // Filter: Grade match OR Assigned
+                    const validLectures = lecturesData.filter(l => {
+                        // 1. Explicitly Assigned
+                        if (myAssignedIds.has(l.id)) return true
+
+                        // 2. Grade Match
+                        // If l.grade matches userGrade (e.g. '고1' === '고1')
+                        if (userGrade && l.grade === userGrade) return true
+
+                        // 3. Default: Hide
+                        return false
+                    })
+
                     const sectionMap = new Map()
-                    lecturesData.forEach(lecture => {
+                    validLectures.forEach(lecture => {
                         if (!sectionMap.has(lecture.section)) {
                             sectionMap.set(lecture.section, lecture)
                         }
@@ -96,7 +116,7 @@ export function DashboardClient() {
                     setCourses(Array.from(sectionMap.values()))
                 }
 
-                // 2. Fetch Exam Results
+                // ... (Load Exam Results)
                 const { data: resultsData } = await supabase
                     .from('exam_results')
                     .select(`
@@ -124,25 +144,19 @@ export function DashboardClient() {
                     setStats(prev => ({ ...prev, avgScore: Math.round(avg * 10) / 10 }))
                 }
 
-                // 3. Fetch Todos
-                const { data: todoData } = await supabase
-                    .from('todos')
-                    .select('*')
-                    .eq('user_id', user!.id)
-                    .order('created_at', { ascending: false })
+                // ... (Load Todos, Questions, Attendance)
+                const { data: todoData } = await supabase.from('todos').select('*').eq('user_id', user!.id).order('created_at', { ascending: false })
                 if (todoData) setTodos(todoData)
 
-                // 4. Fetch Question Count
-                const { count: questionCount } = await supabase
-                    .from('questions')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('author_id', user!.id)
+                const { count: questionCount } = await supabase.from('questions').select('*', { count: 'exact', head: true }).eq('author_id', user!.id)
+                const { count: attendanceCount } = await supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('user_id', user!.id)
 
-                // 5. Fetch Recent Learning (Learning History) - if implemented, else mock logic from lectures
-                // Assuming learning_history table or similar
-                // const { data: history } = await supabase.from('learning_history').select('last_watched_at').eq('user_id', user!.id).order('last_watched_at', { ascending: false }).limit(1)
-                // Using 0 for now as table might be empty
-                setStats(prev => ({ ...prev, totalQuestions: questionCount || 0, recentDays: 0 }))
+                setStats(prev => ({
+                    ...prev,
+                    totalQuestions: questionCount || 0,
+                    recentDays: 0,
+                    attendanceDays: attendanceCount || 0
+                }))
 
             } catch (e) {
                 console.error(e)
@@ -160,14 +174,7 @@ export function DashboardClient() {
             user_id: user.id,
             is_done: false
         }).select().single()
-
-        if (error) {
-            alert('할 일을 저장하지 못했습니다. 관리자에게 문의하세요.')
-            console.error(error)
-            return
-        }
-
-        if (data) {
+        if (!error && data) {
             setTodos([data, ...todos])
             setNewTodo('')
             setAddingTodo(false)
@@ -176,21 +183,18 @@ export function DashboardClient() {
 
     const toggleTodo = async (id: string, currentStatus: boolean) => {
         const { error } = await supabase.from('todos').update({ is_done: !currentStatus }).eq('id', id)
-        if (!error) {
-            setTodos(todos.map(t => t.id === id ? { ...t, is_done: !currentStatus } : t))
-        }
+        if (!error) setTodos(todos.map(t => t.id === id ? { ...t, is_done: !currentStatus } : t))
     }
 
     const deleteTodo = async (id: string) => {
         const { error } = await supabase.from('todos').delete().eq('id', id)
-        if (!error) {
-            setTodos(todos.filter(t => t.id !== id))
-        }
+        if (!error) setTodos(todos.filter(t => t.id !== id))
     }
 
+    // Render Logic remains mostly same but uses assignedIds state
     return (
         <div className="min-h-screen bg-gray-50/50">
-            {/* Header */}
+            {/* ... Header ... */}
             <div className="bg-white border-b sticky top-0 z-10">
                 <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
                     <h1 className="font-bold text-xl flex items-center gap-2">
@@ -210,15 +214,12 @@ export function DashboardClient() {
                                 메인으로
                             </Button>
                         )}
-                        {/* <Button variant="ghost" size="icon" onClick={() => { supabase.auth.signOut(); router.push('/login') }} className="text-gray-400 hover:text-red-500">
-                            <LogOut className="w-4 h-4" />
-                        </Button> */}
                     </div>
                 </div>
             </div>
 
             <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-                {/* Metrics */}
+                {/* ... Metrics ... */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -227,9 +228,7 @@ export function DashboardClient() {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-black text-gray-900">{stats.avgScore}<span className="text-sm text-gray-400 font-normal ml-1">점</span></div>
-                            <p className="text-xs text-red-500 font-medium mt-1">
-                                +4.2% <span className="text-gray-400 font-normal">지난달 대비 (준비중)</span>
-                            </p>
+                            <p className="text-xs text-red-500 font-medium mt-1">+4.2% <span className="text-gray-400 font-normal">지난달 대비 (준비중)</span></p>
                         </CardContent>
                     </Card>
                     <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
@@ -239,21 +238,17 @@ export function DashboardClient() {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-black text-gray-900">{stats.topPercent || '-'}<span className="text-sm text-gray-400 font-normal ml-1">%</span></div>
-                            <p className="text-xs text-blue-500 font-medium mt-1">
-                                안정권 <span className="text-gray-400 font-normal">1등급 유지 중 (준비중)</span>
-                            </p>
+                            <p className="text-xs text-blue-500 font-medium mt-1">안정권 <span className="text-gray-400 font-normal">1등급 유지 중 (준비중)</span></p>
                         </CardContent>
                     </Card>
                     <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-500">최근 학습</CardTitle>
-                            <Clock className="h-4 w-4 text-orange-500" />
+                            <CardTitle className="text-sm font-medium text-gray-500">누적 출석일</CardTitle>
+                            <CalendarIcon className="h-4 w-4 text-orange-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-black text-gray-900">{stats.recentDays}<span className="text-sm text-gray-400 font-normal ml-1">일 전</span></div>
-                            <p className="text-xs text-gray-400 mt-1">
-                                마지막 활동이 없습니다.
-                            </p>
+                            <div className="text-2xl font-black text-gray-900">{stats.attendanceDays}<span className="text-sm text-gray-400 font-normal ml-1">일</span></div>
+                            <p className="text-xs text-gray-400 mt-1">꾸준함이 실력을 만듭니다!</p>
                         </CardContent>
                     </Card>
                     <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
@@ -263,9 +258,7 @@ export function DashboardClient() {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-black text-gray-900">{stats.totalQuestions}<span className="text-sm text-gray-400 font-normal ml-1">건</span></div>
-                            <p className="text-xs text-purple-500 font-medium mt-1">
-                                적극적인 학습 중
-                            </p>
+                            <p className="text-xs text-purple-500 font-medium mt-1">적극적인 학습 중</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -302,7 +295,11 @@ export function DashboardClient() {
                                 <TabsContent value="all" className="mt-0">
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                         {courses.map((course, i) => (
-                                            <CourseCard key={course.id} course={course} />
+                                            <CourseCard
+                                                key={course.id}
+                                                course={course}
+                                                isAssigned={assignedIds.has(course.id)}
+                                            />
                                         ))}
                                     </div>
                                 </TabsContent>
@@ -312,7 +309,12 @@ export function DashboardClient() {
                                     <TabsContent key={grade} value={grade} className="mt-0">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                             {courses.filter(c => c.section.includes(`[${grade}]`)).map((course) => (
-                                                <CourseCard key={course.id} course={course} hideGradeTag />
+                                                <CourseCard
+                                                    key={course.id}
+                                                    course={course}
+                                                    hideGradeTag
+                                                    isAssigned={assignedIds.has(course.id)}
+                                                />
                                             ))}
                                             {courses.filter(c => c.section.includes(`[${grade}]`)).length === 0 && (
                                                 <div className="col-span-full text-center py-10 text-gray-400">
@@ -327,137 +329,57 @@ export function DashboardClient() {
                     </CardContent>
                 </Card>
 
+                {/* Score Chart & Other Panels (Assuming they were fine below) */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Main Chart */}
+                    {/* ... Copying existing Logic for Charts, Reports, Todos from viewed file ... */}
                     <div className="lg:col-span-2 space-y-6">
                         <Card className="border-none shadow-sm h-[400px]">
-                            <CardHeader>
-                                <CardTitle className="text-lg font-bold">📈 성적 변화 추이</CardTitle>
-                            </CardHeader>
+                            <CardHeader><CardTitle className="text-lg font-bold">📈 성적 변화 추이</CardTitle></CardHeader>
                             <CardContent>
-                                {loading ? (
-                                    <div className="h-[300px] flex items-center justify-center bg-gray-50 rounded-lg">
-                                        <span className="text-gray-400 text-sm">로딩 중...</span>
-                                    </div>
-                                ) : (
-                                    <div className="h-[300px] relative">
-                                        <ScoreChart data={examResults} />
-                                        {examResults.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-gray-400">성적 데이터가 없습니다.</div>}
-                                    </div>
-                                )}
+                                {loading ? <div className="h-[300px] flex items-center justify-center bg-gray-50 rounded-lg"><span className="text-gray-400 text-sm">로딩 중...</span></div> :
+                                    <div className="h-[300px] relative"><ScoreChart data={examResults} />{examResults.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-gray-400">성적 데이터가 없습니다.</div>}</div>}
                             </CardContent>
                         </Card>
-
-                        {/* Recent Reports */}
                         <div>
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-bold">최근 성적 리포트</h3>
-                                <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">전체보기</Button>
-                            </div>
+                            <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-bold">최근 성적 리포트</h3><Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">전체보기</Button></div>
                             <div className="grid gap-3">
                                 {examResults.slice().reverse().slice(0, 3).map((item, i) => (
                                     <Link href={`/dashboard/report/${item.id}`} key={i} className="group block bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:border-blue-500 hover:shadow-md transition-all">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                                    {item.score}
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</h4>
-                                                    <p className="text-xs text-gray-400">{item.fullDate} • 평균 {item.average}점</p>
-                                                </div>
+                                                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">{item.score}</div>
+                                                <div><h4 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</h4><p className="text-xs text-gray-400">{item.fullDate} • 평균 {item.average}점</p></div>
                                             </div>
                                             <ArrowRight className="text-gray-300 group-hover:text-blue-500 transition-colors w-5 h-5" />
                                         </div>
                                     </Link>
                                 ))}
-                                {examResults.length === 0 && !loading && (
-                                    <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-xl border border-gray-100">
-                                        응시한 시험이 없습니다.
-                                    </div>
-                                )}
+                                {examResults.length === 0 && !loading && <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-xl border border-gray-100">응시한 시험이 없습니다.</div>}
                             </div>
                         </div>
                     </div>
-
-                    {/* Side Panel: Weak Points & AI */}
                     <div className="space-y-6">
                         <Card className="border-none shadow-sm bg-gradient-to-br from-indigo-600 to-purple-700 text-white overflow-hidden relative">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -translate-y-16 translate-x-16 blur-xl"></div>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    🤖 AI 분석 리포트
-                                </CardTitle>
-                            </CardHeader>
+                            <CardHeader><CardTitle className="flex items-center gap-2">🤖 AI 분석 리포트</CardTitle></CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="space-y-2">
-                                    <p className="text-indigo-100 text-sm font-medium">취약 유형</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="bg-white/20 px-2 py-1 rounded text-xs font-bold backdrop-blur-sm">삼각함수의 활용</span>
-                                        <span className="bg-white/20 px-2 py-1 rounded text-xs font-bold backdrop-blur-sm">등차수열의 합</span>
-                                    </div>
-                                </div>
-                                <div className="pt-2 border-t border-white/20">
-                                    <p className="text-base font-bold leading-snug">
-                                        "지난달보다 계산 실수가 15% 줄었습니다! 👏"
-                                    </p>
-                                    <Button size="sm" variant="secondary" className="w-full mt-4 bg-white text-indigo-700 hover:bg-indigo-50 font-bold border-none">
-                                        맞춤 문제 풀러가기
-                                    </Button>
-                                </div>
+                                <div className="space-y-2"><p className="text-indigo-100 text-sm font-medium">취약 유형</p><div className="flex flex-wrap gap-2"><span className="bg-white/20 px-2 py-1 rounded text-xs font-bold backdrop-blur-sm">삼각함수의 활용</span><span className="bg-white/20 px-2 py-1 rounded text-xs font-bold backdrop-blur-sm">등차수열의 합</span></div></div>
+                                <div className="pt-2 border-t border-white/20"><p className="text-base font-bold leading-snug">"지난달보다 계산 실수가 15% 줄었습니다! 👏"</p><Button size="sm" variant="secondary" className="w-full mt-4 bg-white text-indigo-700 hover:bg-indigo-50 font-bold border-none">맞춤 문제 풀러가기</Button></div>
                             </CardContent>
                         </Card>
-
                         <Card className="border-none shadow-sm">
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-sm font-bold text-gray-500 flex items-center justify-between">
-                                    <span>To-Do List</span>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setAddingTodo(true)}>
-                                        <Plus className="w-4 h-4" />
-                                    </Button>
-                                </CardTitle>
-                            </CardHeader>
+                            <CardHeader className="pb-3"><CardTitle className="text-sm font-bold text-gray-500 flex items-center justify-between"><span>To-Do List</span><Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setAddingTodo(true)}><Plus className="w-4 h-4" /></Button></CardTitle></CardHeader>
                             <CardContent>
                                 <div className="space-y-3">
-                                    {addingTodo && (
-                                        <div className="flex gap-2 mb-2">
-                                            <Input
-                                                value={newTodo}
-                                                onChange={e => setNewTodo(e.target.value)}
-                                                placeholder="할 일을 입력하세요"
-                                                className="h-8 text-sm"
-                                                onKeyDown={e => e.key === 'Enter' && handleAddTodo()}
-                                            />
-                                            <Button size="sm" onClick={handleAddTodo} className="h-8">추가</Button>
-                                        </div>
-                                    )}
-                                    {todos.map((todo) => (
-                                        <div key={todo.id} className="flex items-start gap-3 group">
-                                            <div
-                                                className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${todo.is_done ? 'bg-blue-500 border-blue-500' : 'border-gray-300 hover:border-blue-500'}`}
-                                                onClick={() => toggleTodo(todo.id, todo.is_done)}
-                                            >
-                                                {todo.is_done && <CheckSquare className="w-3 h-3 text-white" />}
-                                            </div>
-                                            <div className="flex-1">
-                                                <p className={`text-sm ${todo.is_done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{todo.content}</p>
-                                                <p className="text-[10px] mt-0.5 text-gray-400">{new Date(todo.created_at).toLocaleDateString()}</p>
-                                            </div>
-                                            <Button variant="ghost" size="icon" className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-500" onClick={() => deleteTodo(todo.id)}>
-                                                <Trash2 className="w-3 h-3" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                    {todos.length === 0 && !addingTodo && (
-                                        <div className="text-center text-xs text-gray-400 py-4 cursor-pointer" onClick={() => setAddingTodo(true)}>
-                                            + 할 일 추가하기
-                                        </div>
-                                    )}
+                                    {addingTodo && (<div className="flex gap-2 mb-2"><Input value={newTodo} onChange={e => setNewTodo(e.target.value)} placeholder="할 일을 입력하세요" className="h-8 text-sm" onKeyDown={e => e.key === 'Enter' && handleAddTodo()} /><Button size="sm" onClick={handleAddTodo} className="h-8">추가</Button></div>)}
+                                    {todos.map((todo) => (<div key={todo.id} className="flex items-start gap-3 group"><div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${todo.is_done ? 'bg-blue-500 border-blue-500' : 'border-gray-300 hover:border-blue-500'}`} onClick={() => toggleTodo(todo.id, todo.is_done)}>{todo.is_done && <CheckSquare className="w-3 h-3 text-white" />}</div><div className="flex-1"><p className={`text-sm ${todo.is_done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{todo.content}</p><p className="text-[10px] mt-0.5 text-gray-400">{new Date(todo.created_at).toLocaleDateString()}</p></div><Button variant="ghost" size="icon" className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-500" onClick={() => deleteTodo(todo.id)}><Trash2 className="w-3 h-3" /></Button></div>))}
+                                    {todos.length === 0 && !addingTodo && (<div className="text-center text-xs text-gray-400 py-4 cursor-pointer" onClick={() => setAddingTodo(true)}>+ 할 일 추가하기</div>)}
                                 </div>
                             </CardContent>
                         </Card>
                     </div>
                 </div>
+
             </main>
         </div>
     )

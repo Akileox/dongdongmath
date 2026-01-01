@@ -24,18 +24,16 @@ export function StudentSelector({ onSelectionChange, initialSelectedIds = [] }: 
     const [students, setStudents] = useState<Student[]>([])
     const [filteredStudents, setFilteredStudents] = useState<Student[]>([])
     const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds)
+    const [selectedGrade, setSelectedGrade] = useState<string | null>(null)
     const [search, setSearch] = useState('')
     const [loading, setLoading] = useState(true)
     const supabase = createClient()
 
     useEffect(() => {
         async function fetchStudents() {
-            // Fetch from profiles table. Ensure role is student if applicable, but schema image shows 'role' in profiles.
-            // Assuming we filter by role = 'student' or similar if needed.
             const { data, error } = await supabase
                 .from('profiles')
                 .select('id, full_name, grade, class_section, school')
-                // .eq('role', 'student') // Uncomment if role column exists and is used
                 .order('full_name')
 
             if (data) {
@@ -49,15 +47,23 @@ export function StudentSelector({ onSelectionChange, initialSelectedIds = [] }: 
 
     useEffect(() => {
         let res = students
+
+        // Filter by Grade
+        if (selectedGrade) {
+            res = res.filter(s => s.grade === selectedGrade)
+        }
+
+        // Filter by Search
         if (search) {
             res = res.filter(s =>
                 s.full_name?.includes(search) ||
                 s.class_section?.includes(search) ||
-                s.school?.includes(search)
+                s.school?.includes(search) ||
+                s.grade?.includes(search)
             )
         }
         setFilteredStudents(res)
-    }, [search, students])
+    }, [search, selectedGrade, students])
 
     const toggleSelect = (id: string) => {
         const newSelection = selectedIds.includes(id)
@@ -78,7 +84,7 @@ export function StudentSelector({ onSelectionChange, initialSelectedIds = [] }: 
     }
 
     return (
-        <div className="flex gap-4 h-[500px]">
+        <div className="flex gap-4 h-full">
             {/* Left: Search & List */}
             <div className="flex-1 flex flex-col border rounded-xl overflow-hidden bg-white shadow-sm">
                 <div className="p-4 border-b space-y-3 bg-gray-50/50">
@@ -91,7 +97,21 @@ export function StudentSelector({ onSelectionChange, initialSelectedIds = [] }: 
                             onChange={e => setSearch(e.target.value)}
                         />
                     </div>
-                    <div className="flex justify-between items-center text-xs text-gray-500">
+                    {/* Grade Filters */}
+                    <div className="flex gap-2">
+                        {['전체', '고1', '고2', '고3'].map((grade) => (
+                            <Button
+                                key={grade}
+                                variant={selectedGrade === (grade === '전체' ? null : grade) ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setSelectedGrade(grade === '전체' ? null : grade)}
+                                className={`h-7 text-xs ${selectedGrade === (grade === '전체' ? null : grade) ? 'bg-blue-600 hover:bg-blue-700' : 'text-gray-600'}`}
+                            >
+                                {grade}
+                            </Button>
+                        ))}
+                    </div>
+                    <div className="flex justify-between items-center text-xs text-gray-500 pt-1">
                         <span>검색 결과: {filteredStudents.length}명</span>
                         <Button variant="ghost" size="sm" onClick={selectAllFiltered} className="h-6 text-xs px-2 hover:bg-blue-50 hover:text-blue-600">
                             + 전체 선택

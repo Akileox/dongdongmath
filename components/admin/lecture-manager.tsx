@@ -8,9 +8,11 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { StudentSelector } from "@/components/admin/student-selector"
 
 import { useRouter } from "next/navigation"
-import { ImagePlus } from "lucide-react"
+import { ImagePlus, RotateCw, UserPlus } from "lucide-react"
 
 export function LectureManager() {
     const [title, setTitle] = useState('')
@@ -31,7 +33,11 @@ export function LectureManager() {
 
     // List State
     const [lectures, setLectures] = useState<any[]>([])
-    // Removed Edit/Expand states as we navigate to detail page now
+
+    // Assign State
+    const [isAssignOpen, setIsAssignOpen] = useState(false)
+    const [assignTargetSection, setAssignTargetSection] = useState('')
+    const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([])
 
     const supabase = createClient()
     const router = useRouter()
@@ -65,7 +71,7 @@ export function LectureManager() {
             const res = await fetch('/api/admin/lectures/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ playlistUrl, section: finalSection })
+                body: JSON.stringify({ playlistUrl, section: finalSection, grade })
             })
 
             const data = await res.json()
@@ -105,6 +111,41 @@ export function LectureManager() {
         }
     }
 
+    const handleRefreshSection = async (e: React.MouseEvent, secName: string, currentPlaylistUrl?: string) => {
+        e.stopPropagation()
+
+        let targetUrl = currentPlaylistUrl
+        if (!targetUrl) {
+            const input = prompt('이 강좌의 재생목록 URL을 입력해주세요:')
+            if (!input) return
+            targetUrl = input
+        }
+
+        if (!confirm(`'${secName}' 강좌를 유튜브 재생목록과 동기화하여 갱신하시겠습니까?`)) return
+
+        setLoading(true)
+        setMessage('재생목록을 갱신 중입니다...')
+
+        try {
+            const res = await fetch('/api/admin/lectures/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playlistUrl: targetUrl, section: secName }) // Note: we might need grade here if we want to update it, but sync logic handles explicit grade or existing. Here we just refreshing content.
+            })
+
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Sync failed')
+
+            alert(`갱신 완료! ${data.count}개의 영상이 확인되었습니다.`)
+            fetchLectures()
+        } catch (e: any) {
+            alert('갱신 실패: ' + e.message)
+        } finally {
+            setLoading(false)
+            setMessage('')
+        }
+    }
+
     const toggleSelectSection = (secName: string) => {
         setSelectedSections(prev =>
             prev.includes(secName) ? prev.filter(s => s !== secName) : [...prev, secName]
@@ -128,6 +169,7 @@ export function LectureManager() {
             section: finalSection,
             youtube_link: youtubeLink,
             learning_guide: learningGuide,
+            grade: grade
         })
 
         if (error) {
@@ -143,11 +185,56 @@ export function LectureManager() {
         setLoading(false)
     }
 
+    const handleAssignStudents = async (selectedIds: string[]) => {
+        if (!assignTargetSection) return
+        setLoading(true)
+
+        // 1. Get all lectures in this section
+        const { data: sectionLectures } = await supabase
+            .from('lectures')
+            .select('id')
+            .eq('section', assignTargetSection)
+
+        if (!sectionLectures || sectionLectures.length === 0) {
+            alert('이 섹션에 강좌가 없습니다.')
+            setLoading(false)
+            return
+        }
+
+        // 2. Prepare inserts
+        const toInsert: any[] = []
+        sectionLectures.forEach(lec => {
+            selectedIds.forEach(sid => {
+                toInsert.push({
+                    lecture_id: lec.id,
+                    student_id: sid
+                })
+            })
+        })
+
+        if (toInsert.length === 0) {
+            setLoading(false)
+            setIsAssignOpen(false)
+            return
+        }
+
+        // 3. Upsert (ignore conflicts if already assigned)
+        const { error } = await supabase
+            .from('lecture_assignments')
+            .upsert(toInsert, { onConflict: 'lecture_id, student_id', ignoreDuplicates: true })
+
+        if (error) {
+            alert('배정 실패: ' + error.message)
+        } else {
+            alert(`${selectedIds.length}명의 학생에게 ${sectionLectures.length}개의 강의를 배정했습니다.`)
+        }
+        setLoading(false)
+        setIsAssignOpen(false)
+    }
+
     return (
         <Card className="glass border-white/10">
             <CardHeader>
-                {/* Updated CardTitle to reflect combined header */}
-                {/* <CardTitle>새 강의 추가</CardTitle> */}
             </CardHeader>
             <CardContent>
                 {/* Header Section */}
@@ -200,10 +287,8 @@ export function LectureManager() {
                 </div>
 
                 {/* Form Section */}
-                {/* Removed id="lecture-form-anchor" as scrolling to form for edit is no longer needed */}
                 <form onSubmit={handleAddLecture} className="space-y-4 mb-12">
                     <h3 className="font-bold text-gray-900 mb-2">⚡ 개별 강의 추가</h3>
-                    {/* Removed conditional rendering for '강의 수정' / '개별 강의 추가' and '수정 취소' button */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-4">
                             <Input
@@ -262,7 +347,6 @@ export function LectureManager() {
                 <div>
                     <h3 className="font-bold text-lg mb-4 text-gray-900 flex items-center gap-2">
                         📚 등록된 강좌 관리
-                        📚 등록된 강좌 관리
                         <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">클릭하여 상세 관리 페이지로 이동</span>
                     </h3>
 
@@ -310,7 +394,6 @@ export function LectureManager() {
                                                 const firstLecture = filteredLectures.find(l => l.section === secName);
                                                 if (!firstLecture) return null;
 
-                                                // Strip tag for display
                                                 const displayName = secName.replace(/\[.*?\]\s*/, '');
                                                 const count = filteredLectures.filter(l => l.section === secName).length;
 
@@ -331,7 +414,7 @@ export function LectureManager() {
                                                                 <input
                                                                     type="checkbox"
                                                                     checked={selectedSections.includes(secName)}
-                                                                    onChange={() => { }} // handled by div click
+                                                                    onChange={() => { }}
                                                                     className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
                                                                 />
                                                             </div>
@@ -351,7 +434,30 @@ export function LectureManager() {
                                                             </div>
                                                             <Button
                                                                 variant="secondary"
-                                                                className="absolute top-2 left-2 h-8 w-8 rounded-full bg-black/50 hover:bg-black/80 text-white p-0 border-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                className="absolute top-2 right-26 h-8 w-8 rounded-full bg-white/90 hover:bg-white text-green-600 p-0 border-0 opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-sm mr-1"
+                                                                style={{ right: '6rem' }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    setAssignTargetSection(secName)
+                                                                    setIsAssignOpen(true)
+                                                                }}
+                                                                title="학생에게 강좌 배정"
+                                                            >
+                                                                <UserPlus size={14} />
+                                                            </Button>
+
+                                                            <Button
+                                                                variant="secondary"
+                                                                className="absolute top-2 right-14 h-8 w-8 rounded-full bg-white/90 hover:bg-white text-blue-600 p-0 border-0 opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-sm"
+                                                                onClick={(e) => handleRefreshSection(e, secName, firstLecture.playlist_url)}
+                                                                title="유튜브 재생목록 새로고침 (동기화)"
+                                                            >
+                                                                <RotateCw size={14} />
+                                                            </Button>
+
+                                                            <Button
+                                                                variant="secondary"
+                                                                className="absolute top-2 left-2 h-8 w-8 rounded-full bg-black/50 hover:bg-black/80 text-white p-0 border-0 opacity-0 group-hover:opacity-100 transition-opacity z-20"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     alert("썸네일 등록 기능은 준비 중입니다. (추후 업데이트)");
@@ -383,6 +489,25 @@ export function LectureManager() {
                     )}
                 </div>
             </CardContent>
+
+            <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
+                <DialogContent className="max-w-3xl bg-white h-[80vh] flex flex-col p-4 md:p-6">
+                    <DialogHeader>
+                        <DialogTitle>'{assignTargetSection}' 강좌 배정</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-hidden mt-4 min-h-0">
+                        <StudentSelector
+                            onSelectionChange={setTempSelectedIds}
+                            initialSelectedIds={[]}
+                        />
+                    </div>
+                    <DialogFooter className="mt-4">
+                        <Button onClick={() => handleAssignStudents(tempSelectedIds)} className="w-full md:w-auto">
+                            배정하기
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Card>
     )
 }

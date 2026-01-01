@@ -42,13 +42,13 @@ export function ClassManager() {
         // If this fails, I will need to move it to API too. Let's try mixed first as Profile RLS was the specific blocker.
         const { data: attendance } = await supabase
             .from('attendance')
-            .select('student_id, status')
+            .select('user_id, status')
             .eq('date', date)
 
         // Merge
         const merged = studentsOnly.map((p: any) => ({
             ...p,
-            attendance_status: attendance?.find(a => a.student_id === p.id)?.status || 'none'
+            attendance_status: attendance?.find(a => a.user_id === p.id)?.status || 'none'
         }))
 
         setStudents(merged)

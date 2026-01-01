@@ -9,9 +9,9 @@ const supabaseAdmin = createClient(
 
 export async function POST(request: Request) {
     try {
-        const { playlistUrl, section } = await request.json()
+        const { playlistUrl, section, grade } = await request.json()
 
-        if (!playlistUrl || !section) {
+        if (!playlistUrl || !section) { // Grade is optional but recommended
             return NextResponse.json({ error: 'Playlist URL and Section are required' }, { status: 400 })
         }
 
@@ -119,8 +119,9 @@ export async function POST(request: Request) {
                 await supabaseAdmin.from('lectures').update({
                     title: video.title,
                     section: section,
+                    playlist_url: playlistUrl, // Update playlist URL
+                    grade: grade // Update grade
                     // don't overwrite learning_guide if exists?
-                    // or maybe user wants to sync title changes.
                 }).eq('id', existing.id)
             } else {
                 await supabaseAdmin.from('lectures').insert({
@@ -128,7 +129,9 @@ export async function POST(request: Request) {
                     section: section,
                     youtube_link: video.youtube_link,
                     learning_guide: '',
-                    created_at: staggeredTime
+                    created_at: staggeredTime,
+                    playlist_url: playlistUrl, // Store playlist URL
+                    grade: grade // Insert grade
                 })
             }
             count++

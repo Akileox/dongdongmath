@@ -11,17 +11,19 @@ export default function LearningReportPage({ params }: { params: Promise<{ id: s
     const router = useRouter()
     const { id } = use(params)
     const [result, setResult] = useState<any>(null)
+    const [questions, setQuestions] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const supabase = createClient()
 
     useEffect(() => {
         async function fetchData() {
             // Fetch Result + Exam Info
-            const { data, error } = await supabase
+            const { data: resData, error } = await supabase
                 .from('exam_results')
                 .select(`
                     *,
                     exams (
+                        id,
                         title,
                         exam_date,
                         total_score
@@ -30,10 +32,17 @@ export default function LearningReportPage({ params }: { params: Promise<{ id: s
                 .eq('id', id)
                 .single()
 
-            if (data) {
-                setResult(data)
+            if (resData) {
+                setResult(resData)
+                // Fetch Questions
+                const { data: qData } = await supabase
+                    .from('exam_questions')
+                    .select('*')
+                    .eq('exam_id', resData.exams.id)
+                    .order('question_number', { ascending: true })
+
+                if (qData) setQuestions(qData)
             } else {
-                // Fallback / Error handling
                 console.error(error)
             }
             setLoading(false)
@@ -46,14 +55,24 @@ export default function LearningReportPage({ params }: { params: Promise<{ id: s
 
     // Data Mapping
     const myScore = result.score
-    const mean = 70 // Default mean since not in DB
-    const sd = 15 // Default SD since not in DB
+    const mean = 70
+    const sd = 15
     const examDate = new Date(result.exams?.exam_date).toLocaleDateString()
     const examTitle = result.exams?.title
     const aiComment = result.feedback || "분석 결과가 없습니다."
+    const details = result.details || {}
+
+    // Identify Weak Points (Incorrect Questions)
+    const incorrectQuestions = questions.filter(q => {
+        // If details exist, use them. If not (legacy), assume correct or unknown?
+        // Let's assume if details entry is missing, it's correct (default) or handle gracefully.
+        // In GradingDialog, missing means Correct.
+        const d = details[q.id]
+        return d && d.is_correct === false
+    })
 
     // Generate Bell Curve Path
-    const width = 600 // Wider for full page
+    const width = 600
     const height = 200
     const points = []
     for (let x = 0; x <= width; x += 5) {
@@ -92,7 +111,7 @@ export default function LearningReportPage({ params }: { params: Promise<{ id: s
                         {examDate}
                     </span>
                     <h2 className="text-3xl font-bold text-gray-900">{examTitle}</h2>
-                    <p className="text-gray-500 mt-2">나의 성적 위치와 AI 분석 결과를 확인하세요.</p>
+                    <p className="text-gray-500 mt-2">나의 성적 위치와 상세 분석 결과를 확인하세요.</p>
                 </div>
 
                 {/* Score Summary Grid */}
@@ -147,20 +166,113 @@ export default function LearningReportPage({ params }: { params: Promise<{ id: s
                     </CardContent>
                 </Card>
 
-                {/* AI Comment */}
+                {/* Weak Points & Topics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card className="border-none shadow-sm bg-red-50/50 border-red-100">
+                        <CardHeader>
+                            <CardTitle className="text-red-900 flex items-center gap-2">🚨 오답 분석 (취약 유형)</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {incorrectQuestions.length === 0 ? (
+                                <p className="text-green-600 font-bold">오답이 없습니다! 완벽해요! 🎉</p>
+                            ) : (
+                                <ul className="space-y-2">
+                                    {incorrectQuestions.map(q => (
+                                        <li key={q.id} className="flex items-start gap-2 text-sm text-red-800">
+                                            <span className="font-bold min-w-[30px]">{q.question_number}번</span>
+                                            <span>{q.description || '유형 설명이 없습니다.'}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-none shadow-sm bg-blue-50/50 border-blue-100">
+                        <CardHeader>
+                            <CardTitle className="text-blue-900 flex items-center gap-2">💡 학습 전략</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-blue-800 text-sm leading-relaxed">
+                                {incorrectQuestions.length > 0
+                                    ? `총 ${incorrectQuestions.length}개의 오답이 있습니다. 위 취약 유형을 중심으로 개념 강의를 복습하는 것을 추천합니다.`
+                                    : `완벽한 점수입니다! 심화 문제를 통해 실력을 더 단단하게 다져보세요.`
+                                }
+                            </p>
+                            <div className="mt-4">
+                                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white w-full">
+                                    추천 강의 보러가기
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Detailed Table */}
+                <Card className="border-none shadow-sm bg-white">
+                    <CardHeader>
+                        <CardTitle>📝 문항별 상세 내역</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+                                    <tr>
+                                        <th className="px-4 py-3 rounded-l-lg">번호</th>
+                                        <th className="px-4 py-3">유형 / 설명</th>
+                                        <th className="px-4 py-3 text-center">배점</th>
+                                        <th className="px-4 py-3 text-center">채점 결과</th>
+                                        <th className="px-4 py-3 rounded-r-lg text-center">상태</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {questions.map((q) => {
+                                        const isCorrect = details[q.id]?.is_correct ?? true // Default to correct if missing? Or show as un-graded?
+                                        // Actually if details is empty (legacy), we usually assumed full score or manual score.
+                                        // But for new system, use details.
+
+                                        return (
+                                            <tr key={q.id} className="border-b last:border-0 hover:bg-gray-50">
+                                                <td className="px-4 py-3 font-bold">{q.question_number}</td>
+                                                <td className="px-4 py-3 text-gray-600">{q.description || '-'}</td>
+                                                <td className="px-4 py-3 text-center">{q.score_value}</td>
+                                                <td className="px-4 py-3 text-center">
+                                                    {isCorrect ? (
+                                                        <span className="text-blue-600 font-bold">O</span>
+                                                    ) : (
+                                                        <span className="text-red-500 font-bold">X</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    {isCorrect ? (
+                                                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full font-bold">정답</span>
+                                                    ) : (
+                                                        <span className="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full font-bold">오답</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                    {questions.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="text-center py-6 text-gray-400">문항 정보가 없습니다.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* AI Comment (Original) */}
                 <Card className="border-none shadow-sm bg-gradient-to-br from-indigo-50 to-white border-l-4 border-indigo-500">
                     <CardContent className="p-6">
                         <h3 className="font-bold text-indigo-900 mb-3 flex items-center gap-2">
-                            💡 AI 학습 코멘트
+                            🤖 종합 AI 피드백
                         </h3>
                         <p className="text-indigo-800 leading-relaxed text-lg whitespace-pre-wrap">
                             {aiComment}
                         </p>
-                        <div className="mt-4 flex gap-2">
-                            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white border-none">
-                                추천 문제 풀기
-                            </Button>
-                        </div>
                     </CardContent>
                 </Card>
             </div>

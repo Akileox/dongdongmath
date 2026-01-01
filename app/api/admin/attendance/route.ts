@@ -14,12 +14,12 @@ export async function POST(request: Request) {
             const { error } = await supabaseAdmin
                 .from('attendance')
                 .delete()
-                .match({ student_id: studentId, date })
+                .match({ user_id: studentId, date })
             if (error) throw error
         } else {
             const { error } = await supabaseAdmin
                 .from('attendance')
-                .upsert({ student_id: studentId, date, status })
+                .upsert({ user_id: studentId, date, status })
             if (error) throw error
         }
 

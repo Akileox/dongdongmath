@@ -13,6 +13,8 @@ import { QnaManager } from "@/components/admin/qna-manager"
 import { NoticeManager } from "@/components/admin/notice-manager"
 import { LectureManager } from "@/components/admin/lecture-manager"
 
+import { ExamManager } from "@/components/admin/exam-manager"
+
 export default function AdminPage() {
     const router = useRouter()
     const supabase = createClient()
@@ -65,7 +67,7 @@ export default function AdminPage() {
 
                 {/* 3. 성적 관리 */}
                 <TabsContent value="scores" className="space-y-4">
-                    <ScoreInputGrid />
+                    <ExamManager />
                 </TabsContent>
 
                 {/* 4. 수업/영상 (YouTube) */}

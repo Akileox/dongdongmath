@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Users, Upload, Search, UserPlus, Calendar } from "lucide-react"
 
-import { AssistantSchedule } from "@/components/admin/assistant-schedule"
 import { RegistrationList } from "@/components/admin/student-manager/RegistrationList"
 import { IndividualRegistration } from "@/components/admin/student-manager/IndividualRegistration"
 import { BulkUpload } from "@/components/admin/student-manager/BulkUpload"
@@ -299,9 +298,6 @@ export function StudentManager() {
                         <TabsTrigger value="list" className="flex items-center gap-2">
                             <Search className="w-4 h-4" /> 등록 목록
                         </TabsTrigger>
-                        <TabsTrigger value="schedule" className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4" /> 조교 근무표
-                        </TabsTrigger>
                         <TabsTrigger value="assistant_register" className="flex items-center gap-2">
                             <Users className="w-4 h-4" /> 조교 등록
                         </TabsTrigger>
@@ -325,10 +321,6 @@ export function StudentManager() {
                             handleEditCell={handleEditCell}
                             handleDelete={handleDelete}
                         />
-                    </TabsContent>
-
-                    <TabsContent value="schedule" className="space-y-4">
-                        <AssistantSchedule />
                     </TabsContent>
 
                     <TabsContent value="assistant_register" className="space-y-4">
