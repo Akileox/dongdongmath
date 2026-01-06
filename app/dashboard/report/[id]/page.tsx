@@ -167,7 +167,6 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
                 hasExam={true}
                 score={result.score}
                 mean={stats.mean}
-                mean={stats.mean}
                 sd={stats.sd}
                 maxScore={result.exams?.max_score || result.exams?.total_score || 100}
                 gradePrediction={stats.rank && stats.total ? `${Math.ceil((stats.rank / stats.total) * 9)}` : '-'}

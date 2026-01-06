@@ -9,6 +9,7 @@ export async function POST(request: Request) {
 
     try {
         // 1. Upsert Exam Results
+        const { scores } = await request.json()
         const resultsToUpsert = scores.map((s: any) => ({
             exam_id: s.exam_id,
             student_id: s.student_id,
