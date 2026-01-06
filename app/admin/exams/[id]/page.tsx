@@ -36,6 +36,7 @@ export default function ExamDetailPage() {
     const [editTitle, setEditTitle] = useState('')
     const [editDate, setEditDate] = useState('')
     const [editGrade, setEditGrade] = useState('')
+    const [editMaxScore, setEditMaxScore] = useState(100)
 
     useEffect(() => {
         fetchData()
@@ -46,6 +47,7 @@ export default function ExamDetailPage() {
             setEditTitle(exam.title)
             setEditGrade(exam.grade || '')
             setEditDate(exam.exam_date)
+            setEditMaxScore(exam.max_score || 100)
         }
     }, [exam])
 
@@ -88,9 +90,10 @@ export default function ExamDetailPage() {
         await supabase.from('exams').update({
             title: editTitle,
             grade: editGrade,
-            exam_date: editDate
+            exam_date: editDate,
+            max_score: editMaxScore
         }).eq('id', id)
-        setExam({ ...exam, title: editTitle, grade: editGrade, exam_date: editDate })
+        setExam({ ...exam, title: editTitle, grade: editGrade, exam_date: editDate, max_score: editMaxScore })
         setIsEditingMeta(false)
     }
 
@@ -221,6 +224,12 @@ export default function ExamDetailPage() {
                             </SelectContent>
                         </Select>
                         <Input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} />
+                        <Input
+                            type="number"
+                            placeholder="배점 (예: 100)"
+                            value={editMaxScore}
+                            onChange={e => setEditMaxScore(Number(e.target.value))}
+                        />
                         <div className="flex gap-2">
                             <Button size="sm" onClick={handleSaveMeta}>저장</Button>
                             <Button size="sm" variant="ghost" onClick={() => setIsEditingMeta(false)}>취소</Button>

@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useUserRole } from "@/hooks/use-user-role"
 import { Input } from "@/components/ui/input"
+import { AssignmentList } from "@/components/dashboard/assignment-list"
 
 const CourseCard = ({ course, hideGradeTag, isAssigned }: { course: any, hideGradeTag?: boolean, isAssigned?: boolean }) => {
     const displaySection = hideGradeTag ? course.section.replace(/\[.*?\]\s*/, '') : course.section
@@ -59,6 +60,7 @@ export function DashboardClient() {
         attendanceDays: 0
     })
     const [examResults, setExamResults] = useState<any[]>([])
+    const [chartData, setChartData] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [userName, setUserName] = useState('')
     const [courses, setCourses] = useState<any[]>([])
@@ -123,26 +125,70 @@ export function DashboardClient() {
                         id,
                         score,
                         rank,
-                        exams (title, exam_date, total_score)
+                        exams (id, title, exam_date, total_score, category)
                     `)
                     .eq('student_id', user!.id)
-                    .order('exams(exam_date)', { ascending: true })
+                    .order('exams(exam_date)', { ascending: true }) // Ascending for Chart
+
+                // Fetch Learning Logs
+                const { data: logsData } = await supabase
+                    .from('learning_logs')
+                    .select('*')
+                    .order('log_date', { ascending: false })
                     .limit(10)
 
-                if (resultsData && resultsData.length > 0) {
-                    const params = resultsData.map((item: any) => ({
+                let mergedFeed: any[] = []
+
+                if (resultsData) {
+                    // 1. Map Exam Results
+                    const resultItems = resultsData.map((item: any) => ({
+                        type: 'exam',
+                        dateObj: new Date(item.exams.exam_date),
                         date: new Date(item.exams.exam_date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' }),
                         score: item.score,
                         average: 0,
                         title: item.exams.title,
                         fullDate: item.exams.exam_date,
+                        category: item.exams.category,
                         id: item.id
                     }))
-                    setExamResults(params)
 
-                    const avg = params.reduce((acc: number, cur: any) => acc + cur.score, 0) / params.length
-                    setStats(prev => ({ ...prev, avgScore: Math.round(avg * 10) / 10 }))
+                    setChartData(resultItems.filter((i: any) => ['Midterm', 'Final', '중간고사', '기말고사'].includes(i.category)))
+
+                    // Calc Avg
+                    const midFinalOnly = resultItems.filter((item: any) => ['Midterm', 'Final', '중간고사', '기말고사'].includes(item.category || ''))
+                    if (midFinalOnly.length > 0) {
+                        const avg = midFinalOnly.reduce((acc: number, cur: any) => acc + cur.score, 0) / midFinalOnly.length
+                        setStats(prev => ({ ...prev, avgScore: Math.round(avg * 10) / 10 }))
+                    }
+
+                    mergedFeed = [...resultItems]
                 }
+
+                if (logsData) {
+                    // 2. Map Logs (Find if there is already an exam for this date? If so, maybe skip or merge?
+                    // Strategy: If there's an exam on this date, we prefer showing the exam result item which now contains log info in the report page.
+                    // But if there is NO exam, we show the log item.
+
+                    const examDates = new Set(mergedFeed.map(i => i.fullDate))
+
+                    const logItems = logsData.filter((l: any) => !examDates.has(l.log_date)).map((l: any) => ({
+                        type: 'log',
+                        dateObj: new Date(l.log_date),
+                        date: new Date(l.log_date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' }),
+                        score: null,
+                        title: '일일 학습 리포트',
+                        fullDate: l.log_date,
+                        category: 'Daily',
+                        id: 'log-' + l.id // Special ID for routing?
+                    }))
+
+                    mergedFeed = [...mergedFeed, ...logItems]
+                }
+
+                // Sort by Date Descending
+                mergedFeed.sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime())
+                setExamResults(mergedFeed) // Using same state variable for feed items
 
                 // ... (Load Todos, Questions, Attendance)
                 const { data: todoData } = await supabase.from('todos').select('*').eq('user_id', user!.id).order('created_at', { ascending: false })
@@ -337,18 +383,33 @@ export function DashboardClient() {
                             <CardHeader><CardTitle className="text-lg font-bold">📈 성적 변화 추이</CardTitle></CardHeader>
                             <CardContent>
                                 {loading ? <div className="h-[300px] flex items-center justify-center bg-gray-50 rounded-lg"><span className="text-gray-400 text-sm">로딩 중...</span></div> :
-                                    <div className="h-[300px] relative"><ScoreChart data={examResults} />{examResults.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-gray-400">성적 데이터가 없습니다.</div>}</div>}
+                                    <div className="h-[300px] relative"><ScoreChart data={chartData} />{chartData.length === 0 && <div className="absolute inset-0 flex items-center justify-center text-gray-400">성적 데이터가 없습니다.</div>}</div>}
                             </CardContent>
                         </Card>
                         <div>
-                            <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-bold">최근 성적 리포트</h3><Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">전체보기</Button></div>
+                            <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-bold">최근 학습 리포트</h3><Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">전체보기</Button></div>
                             <div className="grid gap-3">
-                                {examResults.slice().reverse().slice(0, 3).map((item, i) => (
-                                    <Link href={`/dashboard/report/${item.id}`} key={i} className="group block bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:border-blue-500 hover:shadow-md transition-all">
+                                {examResults.slice(0, 5).map((item, i) => (
+                                    <Link
+                                        href={item.type === 'log' ? `/dashboard/report/daily/${item.fullDate}` : `/dashboard/report/${item.id}`}
+                                        key={i}
+                                        className="group block bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:border-blue-500 hover:shadow-md transition-all"
+                                    >
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">{item.score}</div>
-                                                <div><h4 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</h4><p className="text-xs text-gray-400">{item.fullDate} • 평균 {item.average}점</p></div>
+                                                {item.type === 'log' ? (
+                                                    <div className="w-10 h-10 rounded-full bg-green-50 text-green-600 flex items-center justify-center font-bold text-sm group-hover:bg-green-600 group-hover:text-white transition-colors">
+                                                        <BookOpen className="w-5 h-5" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">{item.score}</div>
+                                                )}
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{item.title}</h4>
+                                                    <p className="text-xs text-gray-400">
+                                                        {item.fullDate} {item.type !== 'log' && `• 평균 ${item.average}점`}
+                                                    </p>
+                                                </div>
                                             </div>
                                             <ArrowRight className="text-gray-300 group-hover:text-blue-500 transition-colors w-5 h-5" />
                                         </div>
@@ -359,6 +420,7 @@ export function DashboardClient() {
                         </div>
                     </div>
                     <div className="space-y-6">
+                        <AssignmentList />
                         <Card className="border-none shadow-sm bg-gradient-to-br from-indigo-600 to-purple-700 text-white overflow-hidden relative">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -translate-y-16 translate-x-16 blur-xl"></div>
                             <CardHeader><CardTitle className="flex items-center gap-2">🤖 AI 분석 리포트</CardTitle></CardHeader>

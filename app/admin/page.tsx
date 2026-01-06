@@ -7,13 +7,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ClassManager } from "@/components/admin/class-manager"
-import { ScoreInputGrid } from "@/components/admin/score-input-grid"
 import { StudentManager } from "@/components/admin/student-manager"
 import { QnaManager } from "@/components/admin/qna-manager"
 import { NoticeManager } from "@/components/admin/notice-manager"
 import { LectureManager } from "@/components/admin/lecture-manager"
-
 import { ExamManager } from "@/components/admin/exam-manager"
+import { AssignmentManager } from "@/components/admin/assignment-manager"
+import { LearningLogManager } from "@/components/admin/learning-log-manager"
 
 export default function AdminPage() {
     const router = useRouter()
@@ -44,9 +44,11 @@ export default function AdminPage() {
                     <TabsTrigger value="attendance" className="px-4 py-2">📅 출석부</TabsTrigger>
                     <TabsTrigger value="members" className="px-4 py-2">👥 스태프 & 반 배정</TabsTrigger>
                     <TabsTrigger value="scores" className="px-4 py-2">🏆 성적 관리</TabsTrigger>
+                    <TabsTrigger value="assignments" className="px-4 py-2">📝 과제 관리</TabsTrigger>
                     <TabsTrigger value="content" className="px-4 py-2">📺 수업/영상 관리</TabsTrigger>
-                    <TabsTrigger value="notices" className="px-4 py-2">📢 공지사항</TabsTrigger>
                     <TabsTrigger value="qna" className="px-4 py-2">💬 질문 관리 (Q&A)</TabsTrigger>
+                    <TabsTrigger value="notices" className="px-4 py-2">📢 공지사항</TabsTrigger>
+                    <TabsTrigger value="learning" className="px-4 py-2">📊 학습 리포트 (New)</TabsTrigger>
                 </TabsList>
 
                 {/* 1. 출석부 */}
@@ -70,12 +72,17 @@ export default function AdminPage() {
                     <ExamManager />
                 </TabsContent>
 
+                {/* 3.5 과제 관리 */}
+                <TabsContent value="assignments" className="space-y-4">
+                    <div className="flex justify-end p-2 bg-blue-50 rounded text-blue-800 text-sm mb-2">
+                        <span className="font-bold mr-2">Tip:</span> 수업(분반)별로 과제를 배포하면 학생들의 할 일(Todo) 목록에 자동으로 등록됩니다.
+                    </div>
+                    <AssignmentManager />
+                </TabsContent>
+
                 {/* 4. 수업/영상 (YouTube) */}
                 <TabsContent value="content" className="space-y-4">
-
-                    {/* Unified Lecture Manager */}
                     <LectureManager />
-
                 </TabsContent>
 
                 {/* 5. 운영 (공지/Q&A) */}
@@ -91,6 +98,14 @@ export default function AdminPage() {
                         <span className="font-bold mr-2">Tip:</span> 학생들의 질문에 답변을 달아주세요. (답변 완료 시 학생에게 알림이 가지는 않습니다 - 추후 개발 예정)
                     </div>
                     <QnaManager />
+                </TabsContent>
+
+                {/* 6. 학습 리포트 (New) */}
+                <TabsContent value="learning" className="space-y-4">
+                    <div className="flex justify-end p-2 bg-blue-50 rounded text-blue-800 text-sm mb-2">
+                        <span className="font-bold mr-2">Tip:</span> 각 분반별로 오늘 진행한 학습 내용과 코멘트를 작성하면 학생들의 일일 리포트에 자동 반영됩니다.
+                    </div>
+                    <LearningLogManager />
                 </TabsContent>
             </Tabs>
         </div>

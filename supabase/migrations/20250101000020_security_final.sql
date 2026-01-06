@@ -135,6 +135,31 @@ CREATE POLICY "exam_delete_staff" ON public.exams FOR DELETE USING (
 );
 
 
+-- B-2. [EXAM QUESTIONS]
+SELECT public.drop_policy_if_exists('exam_questions', 'Public Read Exam Questions');
+SELECT public.drop_policy_if_exists('exam_questions', 'Staff Manage Exam Questions');
+SELECT public.drop_policy_if_exists('exam_questions', 'Admins and Assistants can manage exam questions');
+SELECT public.drop_policy_if_exists('exam_questions', 'Staff Insert Exam Questions');
+SELECT public.drop_policy_if_exists('exam_questions', 'Staff Update Exam Questions');
+SELECT public.drop_policy_if_exists('exam_questions', 'Staff Delete Exam Questions');
+-- Drop self
+SELECT public.drop_policy_if_exists('exam_questions', 'question_read_all');
+SELECT public.drop_policy_if_exists('exam_questions', 'question_insert_staff');
+SELECT public.drop_policy_if_exists('exam_questions', 'question_update_staff');
+SELECT public.drop_policy_if_exists('exam_questions', 'question_delete_staff');
+
+CREATE POLICY "question_read_all" ON public.exam_questions FOR SELECT USING (true);
+CREATE POLICY "question_insert_staff" ON public.exam_questions FOR INSERT WITH CHECK (
+  (select public.get_my_role()) IN ('admin', 'assistant')
+);
+CREATE POLICY "question_update_staff" ON public.exam_questions FOR UPDATE USING (
+  (select public.get_my_role()) IN ('admin', 'assistant')
+);
+CREATE POLICY "question_delete_staff" ON public.exam_questions FOR DELETE USING (
+  (select public.get_my_role()) IN ('admin', 'assistant')
+);
+
+
 -- C. [EXAM RESULTS]
 SELECT public.drop_policy_if_exists('exam_results', 'Unified Read Exam Results');
 SELECT public.drop_policy_if_exists('exam_results', 'Staff Insert Exam Results');

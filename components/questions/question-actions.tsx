@@ -10,9 +10,15 @@ export function QuestionActions({ questionId, status, authorId }: { questionId: 
     const { user } = useUserRole()
     const router = useRouter()
 
-    // Only show if user is the author and status is not answered
+    // Only show if user is the author (and not answered) OR if user is admin/assistant
     const isAuthor = user?.id === authorId
-    const canDelete = isAuthor && status !== 'answered'
+    const isAdmin = user?.role === 'admin' || user?.role === 'assistant' || user?.email?.endsWith('@teamdj.com') // Fallback role check if needed, but rely on useUserRole props if simple.
+    // Actually useUserRole return { role }
+    const { role } = useUserRole()
+    const isStaff = role === 'admin' || role === 'assistant'
+
+    // Logic: Author can delete if NOT answered. Staff can delete ALWAYS.
+    const canDelete = isStaff || (isAuthor && status !== 'answered')
 
     if (!canDelete) return null
 

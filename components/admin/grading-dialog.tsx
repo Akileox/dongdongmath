@@ -56,19 +56,32 @@ export function GradingDialog({
     }
 
     const handleSave = async () => {
-        const { error } = await supabase
-            .from('exam_results')
-            .update({
-                score: totalScore,
-                details: details
-            })
-            .eq('id', resultId)
+        // 1. Prepare Incorrect Answers List
+        const incorrects = questions.filter(q => {
+            const isCorrect = details[q.id]?.is_correct ?? true
+            return !isCorrect
+        })
 
-        if (error) {
-            alert('저장 실패: ' + error.message)
-        } else {
+        try {
+            const res = await fetch('/api/admin/grading', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    result_id: resultId,
+                    score: totalScore,
+                    details: details,
+                    incorrects: incorrects
+                })
+            })
+
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || '저장 실패')
+
             onSave()
             onOpenChange(false)
+        } catch (error: any) {
+            console.error(error)
+            alert('저장 중 오류 발생: ' + error.message)
         }
     }
 
@@ -93,8 +106,8 @@ export function GradingDialog({
                                     key={q.id}
                                     onClick={() => handleToggle(q.id)}
                                     className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${isCorrect
-                                            ? 'border-blue-100 bg-blue-50 hover:bg-blue-100'
-                                            : 'border-red-100 bg-red-50 hover:bg-red-100'
+                                        ? 'border-blue-100 bg-blue-50 hover:bg-blue-100'
+                                        : 'border-red-100 bg-red-50 hover:bg-red-100'
                                         }`}
                                 >
                                     <span className="text-sm font-bold text-gray-500 mb-1">{q.question_number}번</span>

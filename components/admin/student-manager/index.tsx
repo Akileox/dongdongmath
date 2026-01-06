@@ -152,8 +152,9 @@ export function StudentManager() {
 
             const name = parts[0]
             const phone = parts[1]
-            const grade = parts[2] || ''
+            const parent_phone = parts[2] || ''
             const school = parts[3] || ''
+            const grade = parts[4] || ''
 
             if (!name || !phone) return null
             const id = phone.replace(/[^0-9]/g, '')
@@ -162,6 +163,7 @@ export function StudentManager() {
                 email: `${id}@teamdj.com`,
                 name,
                 phone,
+                parent_phone,
                 grade,
                 school,
                 role: 'student'
