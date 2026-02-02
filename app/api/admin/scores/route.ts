@@ -14,7 +14,9 @@ export async function POST(request: Request) {
             exam_id: s.exam_id,
             student_id: s.student_id,
             score: s.score,
-            feedback: s.feedback
+            feedback: s.feedback,
+            missing_reason: s.missing_reason,
+            teacher_note: s.teacher_note
         }))
 
         const { data: upsertedData, error } = await supabaseAdmin

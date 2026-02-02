@@ -10,14 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Trophy, Plus, Save, Calendar as CalendarIcon } from "lucide-react"
 // import { toast } from "@/components/ui/use-toast" // Assuming this exists or similar
 
-type Exam = {
-    id: string
-    title: string
-    exam_date: string
-    category: string
-    total_score: number
-}
-
 type StudentScore = {
     student_id: string
     student_name: string
@@ -27,6 +19,8 @@ type StudentScore = {
     rank?: number
     feedback?: string
     incorrects?: string
+    missing_reason?: string
+    teacher_note?: string
 }
 
 interface ScoreInputGridProps {
@@ -70,7 +64,9 @@ export function ScoreInputGrid({ examId }: ScoreInputGridProps) {
                         student_name: s.full_name,
                         score: res ? res.score : '',
                         feedback: res ? res.feedback : '',
-                        incorrects: incorrectString
+                        incorrects: incorrectString,
+                        missing_reason: res ? res.missing_reason : '',
+                        teacher_note: res ? res.teacher_note : ''
                     }
                 })
                 setScores(merged)
@@ -104,14 +100,17 @@ export function ScoreInputGrid({ examId }: ScoreInputGridProps) {
         if (!examId) return
         setLoading(true)
 
+        // Allow saving if score OR missing reason OR note is present
         const payload = scores
-            .filter(s => s.score !== '')
+            .filter(s => s.score !== '' || s.missing_reason || s.teacher_note)
             .map(s => ({
                 exam_id: examId,
                 student_id: s.student_id,
-                score: s.score,
+                score: s.score === '' ? null : s.score, // Handle empty score for missing students
                 feedback: s.feedback,
-                incorrects: s.incorrects // Pass the string "1, 3, 5"
+                incorrects: s.incorrects,
+                missing_reason: s.missing_reason,
+                teacher_note: s.teacher_note
             }))
 
         try {
@@ -151,10 +150,12 @@ export function ScoreInputGrid({ examId }: ScoreInputGridProps) {
                 <table className="w-full text-sm">
                     <thead className="bg-gray-50 sticky top-0 z-10">
                         <tr>
-                            <th className="p-3 text-left w-32">이름</th>
-                            <th className="p-3 text-center w-24">점수</th>
-                            <th className="p-3 text-left">오답 문항 (번호, 쉼표구분)</th>
-                            <th className="p-3 text-left">피드백 (선택)</th>
+                            <th className="p-3 text-left w-24">이름</th>
+                            <th className="p-3 text-center w-20">점수</th>
+                            <th className="p-3 text-left w-32">미응시 사유</th>
+                            <th className="p-3 text-left w-40">오답 문항 (번호)</th>
+                            <th className="p-3 text-left">특이사항 (비고)</th>
+                            <th className="p-3 text-left">AI/전체 피드백</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y bg-white">
@@ -164,16 +165,32 @@ export function ScoreInputGrid({ examId }: ScoreInputGridProps) {
                                 <td className="p-3 text-center">
                                     <Input
                                         type="number"
-                                        className="w-20 text-center mx-auto h-8"
+                                        className="w-16 text-center mx-auto h-8 px-1"
                                         value={s.score}
                                         onChange={(e) => handleScoreChange(idx, e.target.value)}
                                         onWheel={(e) => e.currentTarget.blur()}
+                                        placeholder="-"
+                                        disabled={!!s.missing_reason} // Disable score if missing reason exists? Or just let them coexist?
                                     />
                                 </td>
                                 <td className="p-3">
                                     <Input
-                                        className="w-full h-8"
-                                        placeholder="예: 1, 4, 5"
+                                        className="w-full h-8 text-xs"
+                                        placeholder="예: 병결, 지각"
+                                        value={s.missing_reason || ''}
+                                        onChange={(e) => {
+                                            const newScores = [...scores]
+                                            newScores[idx].missing_reason = e.target.value
+                                            // Optional: clear score if reason added
+                                            // if (e.target.value) newScores[idx].score = ''
+                                            setScores(newScores)
+                                        }}
+                                    />
+                                </td>
+                                <td className="p-3">
+                                    <Input
+                                        className="w-full h-8 text-xs font-mono"
+                                        placeholder="1, 4, 5"
                                         value={s.incorrects || ''}
                                         onChange={(e) => {
                                             const newScores = [...scores]
@@ -184,8 +201,20 @@ export function ScoreInputGrid({ examId }: ScoreInputGridProps) {
                                 </td>
                                 <td className="p-3">
                                     <Input
-                                        className="w-full h-8"
-                                        placeholder="피드백 입력"
+                                        className="w-full h-8 text-xs"
+                                        placeholder="학생별 메모"
+                                        value={s.teacher_note || ''}
+                                        onChange={(e) => {
+                                            const newScores = [...scores]
+                                            newScores[idx].teacher_note = e.target.value
+                                            setScores(newScores)
+                                        }}
+                                    />
+                                </td>
+                                <td className="p-3">
+                                    <Input
+                                        className="w-full h-8 text-xs"
+                                        placeholder="성적표 출력용 코멘트"
                                         value={s.feedback || ''}
                                         onChange={(e) => {
                                             const newScores = [...scores]

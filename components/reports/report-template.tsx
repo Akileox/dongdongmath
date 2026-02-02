@@ -9,7 +9,7 @@ interface ReportTemplateProps {
 
     // Exam Data (Optional if no exam)
     hasExam: boolean
-    score?: number
+    score?: number | null // Allow null
     mean?: number
     sd?: number
     maxScore?: number
@@ -21,13 +21,16 @@ interface ReportTemplateProps {
     incorrectQuestions?: any[] // Legacy or specific subset
     allQuestions?: any[] // Full list { question_number, is_correct, description, answer }
     aiFeedback?: string
+    missingReason?: string // New
+    teacherNote?: string   // New
+    dailyStudentNote?: string // From Learning Log
 
     // Daily Logs & Assignments
     learningLogs: any[]
     relatedAssignments: any[]
 
     // UI Options
-    isPreview?: boolean // If true, hides interactive buttons like "Download PDF" to avoid clutter in admin view
+    isPreview?: boolean
 }
 
 export function ReportTemplate({
@@ -46,41 +49,32 @@ export function ReportTemplate({
     aiFeedback,
     learningLogs = [],
     relatedAssignments = [],
-    isPreview = false
+    isPreview = false,
+    missingReason,
+    teacherNote,
+    dailyStudentNote
 }: ReportTemplateProps) {
-
-    // Helper for Bell Curve
     const width = 600
     const height = 200
     const points = []
 
     // 1. Calculate Peak Density (at x=mean) to normalize height
-    // Density at mean is 1 / (sd * sqrt(2*PI))
-    // We want this peak to correspond to approx 80% of the graph height (0.8 * height)
-    // So: scaleFactor * maxDensity = 0.8 * height
-    // scaleFactor = (0.8 * height) / maxDensity
     const maxDensity = 1 / (sd * Math.sqrt(2 * Math.PI))
     const scaleFactor = (height * 0.8) / maxDensity
 
-    // Plot curve from 0 to maxScore
+    // Plot curve
     for (let x = 0; x <= width; x += 5) {
-        // Map graphical x (0-600) to score s (0-maxScore)
         const s = (x / width) * maxScore
-
-        // Normal Distribution Formula
         const density = (1 / (sd * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow((s - mean) / sd, 2))
-
-        // Scale Y
         const y = density * scaleFactor
-        const plotY = height - y // Invert for SVG (0 is top)
-
+        const plotY = height - y
         points.push(`${x},${plotY}`)
     }
     const pathData = `M0,${height} L${points.join(' L')} L${width},${height} Z`
 
     // Map my score to graphical x
-    // avoid out of bounds
-    const clampedScore = Math.max(0, Math.min(score, maxScore))
+    const validScore = typeof score === 'number' ? score : 0
+    const clampedScore = Math.max(0, Math.min(validScore, maxScore))
     const myX = (clampedScore / maxScore) * width
 
     return (
@@ -92,6 +86,12 @@ export function ReportTemplate({
                 </span>
                 <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-2">{title}</h2>
                 <p className="text-gray-500">학습 분석 리포트</p>
+                {teacherNote && (
+                    <div className="mt-6 bg-yellow-50 border border-yellow-200 p-4 rounded-xl text-left max-w-2xl mx-auto">
+                        <h4 className="font-bold text-yellow-800 text-sm mb-1">📢 선생님 코멘트</h4>
+                        <p className="text-gray-800">{teacherNote}</p>
+                    </div>
+                )}
             </div>
 
             {hasExam ? (
@@ -101,8 +101,17 @@ export function ReportTemplate({
                         <Card className="border-none shadow-sm bg-blue-50/50">
                             <CardContent className="flex flex-col items-center justify-center py-8">
                                 <span className="text-gray-500 text-sm font-bold mb-2">나의 점수</span>
-                                <span className="text-5xl font-black text-blue-600">{score}점</span>
-                                {rankPercentage && <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded font-bold mt-2">상위 {rankPercentage}%</span>}
+                                {missingReason ? (
+                                    <div className="text-center">
+                                        <span className="text-2xl font-black text-gray-400">미응시</span>
+                                        <p className="text-sm text-red-500 font-bold mt-1">({missingReason})</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <span className="text-5xl font-black text-blue-600">{score}점</span>
+                                        {rankPercentage && <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded font-bold mt-2">상위 {rankPercentage}%</span>}
+                                    </>
+                                )}
                             </CardContent>
                         </Card>
                         <Card className="border-none shadow-sm bg-gray-50">
@@ -112,7 +121,7 @@ export function ReportTemplate({
                                 <span className="text-xs text-gray-400 mt-2">표준편차 {sd}</span>
                             </CardContent>
                         </Card>
-                        {isMajorExam && gradePrediction && (
+                        {isMajorExam && gradePrediction && !missingReason && (
                             <Card className="border-none shadow-sm bg-purple-50/50">
                                 <CardContent className="flex flex-col items-center justify-center py-8">
                                     <span className="text-gray-500 text-sm font-bold mb-2">예상 등급</span>
@@ -123,23 +132,25 @@ export function ReportTemplate({
                         )}
                     </div>
 
-                    {/* Distribution Graph */}
-                    <Card className="border-none shadow-sm bg-white overflow-hidden border border-gray-100">
-                        <CardHeader><CardTitle className="text-base text-gray-700">📊 전체 성적 분포</CardTitle></CardHeader>
-                        <CardContent>
-                            <div className="relative h-64 w-full">
-                                <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" preserveAspectRatio="none">
-                                    <defs><linearGradient id="curveGradient" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity="0.5" /><stop offset="100%" stopColor="#3b82f6" stopOpacity="0.1" /></linearGradient></defs>
-                                    <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="#f3f4f6" strokeDasharray="5,5" />
-                                    <path d={pathData} fill="url(#curveGradient)" stroke="#2563eb" strokeWidth="3" />
-                                    <line x1={myX} y1="0" x2={myX} y2={height} stroke="#ef4444" strokeWidth="2" strokeDasharray="5,3" />
-                                </svg>
-                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur border border-red-100 shadow px-3 py-1 rounded-full text-sm font-bold text-red-600">
-                                    My Score: {score}
+                    {/* Distribution Graph - Hide if missing */}
+                    {!missingReason && (
+                        <Card className="border-none shadow-sm bg-white overflow-hidden border border-gray-100">
+                            <CardHeader><CardTitle className="text-base text-gray-700">📊 전체 성적 분포</CardTitle></CardHeader>
+                            <CardContent>
+                                <div className="relative h-64 w-full">
+                                    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" preserveAspectRatio="none">
+                                        <defs><linearGradient id="curveGradient" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity="0.5" /><stop offset="100%" stopColor="#3b82f6" stopOpacity="0.1" /></linearGradient></defs>
+                                        <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="#f3f4f6" strokeDasharray="5,5" />
+                                        <path d={pathData} fill="url(#curveGradient)" stroke="#2563eb" strokeWidth="3" />
+                                        <line x1={myX} y1="0" x2={myX} y2={height} stroke="#ef4444" strokeWidth="2" strokeDasharray="5,3" />
+                                    </svg>
+                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur border border-red-100 shadow px-3 py-1 rounded-full text-sm font-bold text-red-600">
+                                        My Score: {score}
+                                    </div>
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {/* Incorrect / Strategy Row */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -223,16 +234,31 @@ export function ReportTemplate({
 
             {/* Learning Logs */}
             {learningLogs.length > 0 ? learningLogs.map((log, i) => (
-                <Card key={i} className="border-none shadow-sm bg-gradient-to-br from-green-50 to-white border-l-4 border-green-500">
-                    <CardContent className="p-6">
-                        <h3 className="font-bold text-green-900 mb-4 flex items-center gap-2 text-lg">
-                            <BookOpen className="w-5 h-5" /> 오늘의 학습 내용
-                        </h3>
-                        <p className="text-green-800 leading-relaxed whitespace-pre-wrap">
-                            {log.content}
-                        </p>
-                    </CardContent>
-                </Card>
+                <div key={i} className="space-y-4">
+                    <Card className="border-none shadow-sm bg-gradient-to-br from-green-50 to-white border-l-4 border-green-500">
+                        <CardContent className="p-6">
+                            <h3 className="font-bold text-green-900 mb-4 flex items-center gap-2 text-lg">
+                                <BookOpen className="w-5 h-5" /> 오늘의 학습 내용
+                            </h3>
+                            <p className="text-green-800 leading-relaxed whitespace-pre-wrap">
+                                {log.content}
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    {/* Student Specific Note (Attached to this log) */}
+                    {dailyStudentNote && (
+                        <Card className="border-none shadow-sm bg-yellow-50 border-l-4 border-yellow-400">
+                            <CardContent className="p-4 flex items-start gap-3">
+                                <Lightbulb className="w-5 h-5 text-yellow-600 mt-0.5" />
+                                <div>
+                                    <h4 className="font-bold text-yellow-800 text-sm mb-1">선생님이 남긴 메시지</h4>
+                                    <p className="text-yellow-900 text-sm">{dailyStudentNote}</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
             )) : (
                 !hasExam && (
                     <Card className="border-none shadow-sm bg-white border border-dashed border-gray-200">
@@ -250,10 +276,14 @@ export function ReportTemplate({
                     <CardContent>
                         <div className="space-y-3">
                             {relatedAssignments.map((sub, i) => (
-                                <div key={i} className="bg-white p-3 rounded-lg border border-blue-100 flex justify-between items-center shadow-sm">
+                                <div key={i} className={`p-3 rounded-lg border flex justify-between items-center shadow-sm ${sub.isOverdue ? 'bg-red-50 border-red-200' : 'bg-white border-blue-100'}`}>
                                     <div>
-                                        <div className="font-bold text-gray-800 text-sm mb-1">{sub.assignments?.title || sub.title}</div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            {sub.isOverdue && <span className="bg-red-500 text-white text-[10px] px-1 rounded font-bold">미제출(지연)</span>}
+                                            <div className={`font-bold text-sm ${sub.isOverdue ? 'text-red-700' : 'text-gray-800'}`}>{sub.assignments?.title || sub.title}</div>
+                                        </div>
                                         <div className="text-xs text-gray-500">
+                                            {sub.dueDate && <span>기한: {new Date(sub.dueDate).toLocaleDateString()} | </span>}
                                             {sub.status === 'submitted' ? <span className="text-blue-600 font-bold">제출 완료</span> : <span className="text-gray-400">미제출</span>}
                                         </div>
                                     </div>

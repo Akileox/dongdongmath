@@ -14,6 +14,7 @@ import { LectureManager } from "@/components/admin/lecture-manager"
 import { ExamManager } from "@/components/admin/exam-manager"
 import { AssignmentManager } from "@/components/admin/assignment-manager"
 import { LearningLogManager } from "@/components/admin/learning-log-manager"
+import { MessageManager } from "@/components/admin/message-manager"
 
 export default function AdminPage() {
     const router = useRouter()
@@ -48,6 +49,7 @@ export default function AdminPage() {
                     <TabsTrigger value="content" className="px-4 py-2">📺 수업/영상 관리</TabsTrigger>
                     <TabsTrigger value="qna" className="px-4 py-2">💬 질문 관리 (Q&A)</TabsTrigger>
                     <TabsTrigger value="notices" className="px-4 py-2">📢 공지사항</TabsTrigger>
+                    <TabsTrigger value="messages" className="px-4 py-2">✉️ 쪽지 관리</TabsTrigger>
                     <TabsTrigger value="learning" className="px-4 py-2">📊 학습 리포트 (New)</TabsTrigger>
                 </TabsList>
 
@@ -85,12 +87,19 @@ export default function AdminPage() {
                     <LectureManager />
                 </TabsContent>
 
-                {/* 5. 운영 (공지/Q&A) */}
+                {/* 5. 운영 (공지/Q&A/메시지) */}
                 <TabsContent value="notices" className="space-y-4">
                     <div className="flex justify-end p-2 bg-blue-50 rounded text-blue-800 text-sm mb-2">
                         <span className="font-bold mr-2">Tip:</span> 공지사항을 작성하면 학생 대시보드 및 공지사항 게시판에 즉시 반영됩니다.
                     </div>
                     <NoticeManager />
+                </TabsContent>
+
+                <TabsContent value="messages" className="space-y-4">
+                    <div className="flex justify-end p-2 bg-blue-50 rounded text-blue-800 text-sm mb-2">
+                        <span className="font-bold mr-2">Tip:</span> 학생들에게 1:1 쪽지를 발송하고 내역을 관리합니다.
+                    </div>
+                    <MessageManager />
                 </TabsContent>
 
                 <TabsContent value="qna" className="space-y-4">

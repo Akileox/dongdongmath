@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { StudentDashboardPreview } from "@/components/admin/preview/student-dashboard-preview"
 import { LecturePreview } from "@/components/admin/preview/lecture-preview"
 import { QAPreview } from "@/components/admin/preview/qa-preview"
+import { DMManager } from "@/components/admin/dm-manager"
 
 export default function AdminPage() {
     const { role, loading } = useUserRole()
@@ -41,6 +42,7 @@ export default function AdminPage() {
                     <TabsTrigger value="dashboard">관리 홈</TabsTrigger>
                     <TabsTrigger value="notice">공지관리</TabsTrigger>
                     <TabsTrigger value="qa">질문관리</TabsTrigger>
+                    <TabsTrigger value="dm">DM(쪽지)</TabsTrigger>
                     <TabsTrigger value="preview-mypage">마이페이지(예시)</TabsTrigger>
                     <TabsTrigger value="preview-lecture">강의화면(예시)</TabsTrigger>
                 </TabsList>
@@ -68,6 +70,10 @@ export default function AdminPage() {
                         <p className="text-gray-500 mb-4">이곳에서 학생들의 질문을 확인하고 답변을 달 수 있습니다. (추후 구현 예정)</p>
                         <QAPreview />
                     </div>
+                </TabsContent>
+
+                <TabsContent value="dm" className="mt-6">
+                    <DMManager />
                 </TabsContent>
 
                 <TabsContent value="preview-mypage" className="mt-6">

@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
-import { Users, Shield } from "lucide-react"
+import { Users, Filter } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 type Student = {
     id: string
@@ -11,21 +11,21 @@ type Student = {
     phone: string
     grade?: string
     school?: string
-    class_section?: string // Added
+    class_section?: string
     role: string
     permissions: any
-    attendance_status?: string // Joined from attendance table
+    attendance_status?: string
 }
 
 export function ClassManager() {
     const [students, setStudents] = useState<Student[]>([])
     const [loading, setLoading] = useState(true)
     const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+    const [selectedClass, setSelectedClass] = useState<string>('all')
     const supabase = createClient()
 
     const fetchData = async () => {
         setLoading(true)
-        // 1. Fetch all students via Admin API (Bypass RLS)
         const res = await fetch('/api/admin/students')
         const { profiles, error: apiError } = await res.json()
 
@@ -35,17 +35,20 @@ export function ClassManager() {
             return
         }
 
-        // 2. Filter only students (Exclude admin/assistant)
-        const studentsOnly = profiles.filter((p: any) => p.role === 'student').sort((a: any, b: any) => (a.full_name || '').localeCompare(b.full_name || ''))
+        const studentsOnly = profiles
+            .filter((p: any) => p.role === 'student')
+            .sort((a: any, b: any) => {
+                const classA = a.class_section || 'ZZZ'
+                const classB = b.class_section || 'ZZZ'
+                if (classA !== classB) return classA.localeCompare(classB)
+                return (a.full_name || '').localeCompare(b.full_name || '')
+            })
 
-        // 3. Fetch attendance for date (Direct DB call, assuming RLS for attendance allows admin update/read)
-        // If this fails, I will need to move it to API too. Let's try mixed first as Profile RLS was the specific blocker.
         const { data: attendance } = await supabase
             .from('attendance')
             .select('user_id, status')
             .eq('date', date)
 
-        // Merge
         const merged = studentsOnly.map((p: any) => ({
             ...p,
             attendance_status: attendance?.find(a => a.user_id === p.id)?.status || 'none'
@@ -59,13 +62,21 @@ export function ClassManager() {
         fetchData()
     }, [date])
 
+    const uniqueClasses = useMemo(() => {
+        const classes = new Set(students.map(s => s.class_section).filter(Boolean))
+        return Array.from(classes).sort() as string[]
+    }, [students])
+
+    const filteredStudents = useMemo(() => {
+        if (selectedClass === 'all') return students
+        return students.filter(s => s.class_section === selectedClass)
+    }, [students, selectedClass])
+
     const toggleAttendance = async (studentId: string, currentStatus: string) => {
-        // Cycle: none -> present -> late -> absent -> none
         const cycle = ['none', 'present', 'late', 'absent']
         const nextIndex = (cycle.indexOf(currentStatus) + 1) % cycle.length
         const nextStatus = cycle[nextIndex]
 
-        // Optimistic Update
         setStudents(prev => prev.map(s => s.id === studentId ? { ...s, attendance_status: nextStatus } : s))
 
         try {
@@ -78,21 +89,7 @@ export function ClassManager() {
         } catch (error) {
             console.error(error)
             alert('출석 업데이트 실패')
-            // Rollback
             setStudents(prev => prev.map(s => s.id === studentId ? { ...s, attendance_status: currentStatus } : s))
-        }
-    }
-
-    const togglePermission = async (studentId: string, currentRole: string) => {
-        const newRole = currentRole === 'assistant' ? 'student' : 'assistant'
-
-        const { error } = await supabase
-            .from('profiles')
-            .update({ role: newRole })
-            .eq('id', studentId)
-
-        if (!error) {
-            setStudents(prev => prev.map(s => s.id === studentId ? { ...s, role: newRole } : s))
         }
     }
 
@@ -108,49 +105,72 @@ export function ClassManager() {
     return (
         <Card className="glass border-white/10">
             <CardHeader>
-                <div className="flex justify-between items-center flex-wrap gap-4">
-                    <CardTitle className="flex items-center gap-2">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <CardTitle className="flex items-center gap-2 text-lg">
                         <Users className="w-5 h-5" />
                         학생 출석부
                     </CardTitle>
-                    <input
-                        type="date"
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                        className="border rounded px-2 py-1 text-sm bg-white/50"
-                    />
+
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                        <div className="flex items-center gap-2 bg-white/50 p-1 rounded-md border border-gray-100">
+                            <Filter className="w-4 h-4 text-gray-500 ml-2" />
+                            <Select value={selectedClass} onValueChange={setSelectedClass}>
+                                <SelectTrigger className="w-[180px] h-8 border-none bg-transparent shadow-none focus:ring-0">
+                                    <SelectValue placeholder="모든 분반" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">전체 보기 ({students.length}명)</SelectItem>
+                                    {uniqueClasses.map(cls => (
+                                        <SelectItem key={cls} value={cls}>{cls}반</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <input
+                            type="date"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            className="border rounded px-3 py-1.5 text-sm bg-white shadow-sm"
+                        />
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                        <thead className="text-gray-500 font-medium border-b">
+                        <thead className="text-gray-500 font-medium border-b bg-gray-50/50">
                             <tr>
-                                <th className="text-left py-3 px-2 w-[100px]">학교</th>
-                                <th className="text-center py-3 px-2 w-[80px]">학년</th>
-                                <th className="text-left py-3 px-2 w-[100px]">이름</th>
-                                <th className="text-left py-3 px-2">분반 (Class)</th>
-                                <th className="text-center py-3 px-2 w-[80px]">출석</th>
+                                <th className="text-left py-3 px-3 w-[120px]">분반</th>
+                                <th className="text-left py-3 px-3 w-[100px]">이름</th>
+                                <th className="text-left py-3 px-3 w-[120px]">학교/학년</th>
+                                <th className="text-center py-3 px-3 w-[100px]">출석 상태</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {students.map((student) => (
-                                <tr key={student.id} className="hover:bg-gray-50/50 transition-colors">
-                                    <td className="py-3 px-2 text-gray-600">
-                                        {student.school || '-'}
+                            {filteredStudents.map((student) => (
+                                <tr key={student.id} className="hover:bg-blue-50/30 transition-colors">
+                                    <td className="py-3 px-3">
+                                        {student.class_section ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                {student.class_section}반
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-300 text-xs">-</span>
+                                        )}
                                     </td>
-                                    <td className="py-3 px-2 text-center text-gray-400 text-xs">
-                                        {student.grade || '-'}
-                                    </td>
-                                    <td className="py-3 px-2 font-medium">
+                                    <td className="py-3 px-3 font-medium text-gray-900">
                                         {student.full_name}
-                                        <div className="text-xs text-gray-400 font-light">{(student.phone || '').slice(-4)}</div>
+                                        <div className="text-[10px] text-gray-400 font-light">{(student.phone || '').slice(-4)}</div>
                                     </td>
-                                    <td className="py-3 px-2 text-gray-800 font-bold">
-                                        {student.class_section || <span className="text-gray-300 font-normal">미배정</span>}
+                                    <td className="py-3 px-3 text-gray-500 text-xs">
+                                        {student.school || '-'} {student.grade && `(${student.grade})`}
                                     </td>
-                                    <td className="py-3 px-2 text-center">
-                                        <button onClick={() => toggleAttendance(student.id, student.attendance_status || 'none')}>
+                                    <td className="py-3 px-3 text-center">
+                                        <button
+                                            onClick={() => toggleAttendance(student.id, student.attendance_status || 'none')}
+                                            className="transform active:scale-95 transition-transform"
+                                        >
                                             {getStatusBadge(student.attendance_status || 'none')}
                                         </button>
                                     </td>
@@ -158,8 +178,10 @@ export function ClassManager() {
                             ))}
                         </tbody>
                     </table>
-                    {students.length === 0 && !loading && (
-                        <div className="text-center py-8 text-gray-400">등록된 학생이 없습니다.</div>
+                    {filteredStudents.length === 0 && !loading && (
+                        <div className="text-center py-12 text-gray-400 bg-gray-50/50 rounded-lg mt-4 border border-dashed border-gray-200">
+                            해당 분반에 학생이 없습니다.
+                        </div>
                     )}
                 </div>
             </CardContent>

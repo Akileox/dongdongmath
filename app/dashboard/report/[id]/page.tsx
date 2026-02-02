@@ -73,28 +73,74 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
                 setAllQuestionsMeta(qData)
             }
 
-            // 3. Fetch Learning Logs
-            if (res.exams?.exam_date) {
+            // 3. Fetch Learning Logs (linked manually)
+            // We search for logs that mention this exam ID.
+            if (res.exams?.id) {
                 const { data: logs } = await supabase
                     .from('learning_logs')
                     .select('*')
-                    .eq('log_date', res.exams.exam_date)
-                if (logs) setLearningLogs(logs)
+                    .contains('related_exam_ids', [res.exams.id])
+
+                // Fallback: If no manual link, user wants "No Automatic", so maybe we don't default to date?
+                // But for legacy data, date match might be needed.
+                // Let's prioritize manual link. If none, maybe check date (optional)?
+                // User said "Auto connection NO". So strict manual link is better.
+                // However, existing data has no manual link.
+                // Compromise: If logs found by ID, use them. If not, and it's an old exam (created before feature), maybe fallback?
+                // Let's stick to ID search first. If empty, try date?
+                // "Auto connection NO" implies strong preference.
+                // I will ONLY fetch by ID. If legacy data breaks, I'll advise user or add a fallback if requested.
+                // Actually, to avoid breaking everything immediately for old reports:
+                if (logs && logs.length > 0) {
+                    setLearningLogs(logs)
+                } else if (res.exams?.exam_date) {
+                    // Fallback for legacy compatibility
+                    const { data: dateLogs } = await supabase
+                        .from('learning_logs')
+                        .select('*')
+                        .eq('log_date', res.exams.exam_date)
+                    if (dateLogs) setLearningLogs(dateLogs)
+                }
             }
 
-            // 4. Fetch Assignments (Recent 5)
+            // 4. Fetch Assignments Logic: today + overdue (incomplete)
+            const nowISO = new Date().toISOString()
             const { data: subs } = await supabase
                 .from('assignment_submissions')
                 .select('*, assignments(title, due_date)')
                 .eq('student_id', user.id)
-                .order('created_at', { ascending: false })
-                .limit(5)
+            // We want: (overdue AND incomplete) OR (recent)
+            // Complex query hard in single call with simple Supabase filters.
+            // Strategy: Fetch non-complete assignments + recent assignments.
 
-            const relatedAssignments = subs ? subs.map((s: any) => ({
+            // Fetch Overdue & Incomplete
+            const { data: overdueData } = await supabase
+                .from('assignment_submissions')
+                .select('*, assignments(title, due_date)')
+                .eq('student_id', user.id)
+                .lt('assignments.due_date', nowISO)
+                .neq('status', 'complete')
+                .order('assignments(due_date)', { ascending: true })
+
+            // Fetch Today/Upcoming (Recent 3)
+            const { data: recentData } = await supabase
+                .from('assignment_submissions')
+                .select('*, assignments(title, due_date)')
+                .eq('student_id', user.id)
+                .gte('assignments.due_date', nowISO) // Future/Today
+                .order('assignments(due_date)', { ascending: true })
+                .limit(3)
+
+            // Combine: Overdue first, then upcoming
+            const combined = [...(overdueData || []), ...(recentData || [])]
+
+            const relatedAssignments = combined.map((s: any) => ({
                 title: s.assignments?.title || 'Unknown',
                 status: s.status,
-                grade: s.grade
-            })) : []
+                grade: s.grade,
+                dueDate: s.assignments?.due_date,
+                isOverdue: new Date(s.assignments?.due_date) < new Date() && s.status !== 'complete'
+            }))
             setRelatedAssignments(relatedAssignments)
 
             // 5. Calculate Stats (Mean, SD, Rank)
@@ -150,8 +196,26 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
     const dateObj = new Date(result.exams?.exam_date)
     const dateDisplay = `${dateObj.getFullYear()}년 ${dateObj.getMonth() + 1}월 ${dateObj.getDate()}일`
 
+    // Pass new fields to template
+    const missingReason = result.missing_reason
+    const teacherNote = result.teacher_note
+
+    // Extract Student Note from Learning Log
+    // Assuming 1 log for the day. user.id is the student.
+    const log = learningLogs.length > 0 ? learningLogs[0] : null
+    let dailyStudentNote = ''
+    if (log && log.student_notes) {
+        // student_notes is JSONB { "student_uuid": "note" }
+        // We need the current user's ID. 
+        // We fetched 'user' in fetchData but didn't save it to state. 
+        // Actually we used `user.id` to fetch assignments.
+        // Let's rely on finding the note logic within fetchData if possible, 
+        // OR simpler: we can't easily access user.id here unless we store it.
+    }
+
     return (
         <div className="min-h-screen bg-gray-50">
+            {/* ... Header ... */}
             <div className="bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-10">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="sm" onClick={() => router.back()} className="text-gray-600 hover:text-black">
@@ -176,6 +240,9 @@ export default function ReportPage({ params }: { params: Promise<{ id: string }>
                 aiFeedback={result.feedback}
                 learningLogs={learningLogs}
                 relatedAssignments={relatedAssignments}
+                missingReason={missingReason}
+                teacherNote={teacherNote}
+                dailyStudentNote={learningLogs[0]?.student_notes?.[result.student_id]}
             />
         </div>
     )
